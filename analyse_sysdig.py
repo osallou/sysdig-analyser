@@ -128,7 +128,8 @@ def sysdig_event(event):
                 containers[event['container.name']]['memory'][event['thread.vtid']] = []
             containers[event['container.name']]['memory'][event['thread.vtid']].append({
                 'ts': event['evt.outputtime'],
-                'value': (vm_size, vm_rss, vm_swap)
+                'value': (vm_size, vm_rss, vm_swap),
+                'proc_name': event['proc.name']
             })
 
         (fd, name) = __fd_info(event['evt.info'])
