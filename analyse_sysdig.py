@@ -147,6 +147,8 @@ def sysdig_event(event):
                 name = containers[event['container.name']]['fd'][fd][event['proc.name']]
             if fd not in containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd']:
                 containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd] = {}
+            if not name:
+                name = 'fd_unknown'
             if name:
                 if name not in containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd]:
                     containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd][name] =0
@@ -221,7 +223,9 @@ def group_by_seconds(sysdig_containers, merge=1):
                             current_ts += datetime.timedelta(seconds=merge)
                             next_ts = current_ts + datetime.timedelta(seconds=merge)
                         logging.debug("go to next ts " + str(current_ts))
+                    logging.debug('Check if split needed')
                     if usage['start_date'] + datetime.timedelta(usage['duration'] / 1000000000) > next_ts:
+                        logging.debug('Split event')
                         # Slip event in multiple ones
                         splitted_usages = []
                         nb_elts = ((usage['duration']/ 1000000000) / merge) + 1
@@ -229,16 +233,22 @@ def group_by_seconds(sysdig_containers, merge=1):
                         for index in range(nb_elts):
                             splitted_usage = copy.deepcopy(usage)
                             splitted_usage['duration'] = min(merge * 1000000000, remaining_duration)
-                            splitted_usage['start'] += splitted_usage['duration']
+                            splitted_usage['start'] += splitted_usage['duration'] + (merge * 1000000000 * index)
                             splitted_usage['start_date'] = datetime.datetime.fromtimestamp(splitted_usage['start'] // 1000000000)
                             splitted_usage['debug_date'] = str(splitted_usage['start_date'])
                             splitted_usages.append(splitted_usage)
                             remaining_duration -= splitted_usage['duration']
                     else:
                         splitted_usages = [usage]
+                    logging.debug('splitted events: ' + str(splitted_usages))
                     for splitted_usage in splitted_usages:
-                        logging.debug("USAGE: " + str(splitted_usage['start_date']) + " vs " + str(current_ts))
+                        logging.debug("Start: " + str(splitted_usage['start_date']) + " vs " + str(current_ts))
+                        logging.debug("Next: " + str(splitted_usage['start_date']) + " vs " + str(next_ts))
                         logging.debug(str(splitted_usage))
+                        if splitted_usage['start_date'] >= next_ts and prev_usage:
+                            logging.debug("add prev usage")
+                            thread['usage'].append(prev_usage)
+                            prev_usage = None
                         while splitted_usage['start_date'] >= next_ts:
                             current_ts += datetime.timedelta(seconds=merge)
                             next_ts = current_ts + datetime.timedelta(seconds=merge)
@@ -246,12 +256,14 @@ def group_by_seconds(sysdig_containers, merge=1):
                             # concat events
                             if prev_usage:
                                 logging.debug("concat with previous event")
+                                logging.debug(str(prev_usage))
                                 prev_usage['duration'] += splitted_usage['duration']
+
                                 if splitted_usage['memory'][0] > max_memory:
                                     prev_memory = splitted_usage['memory']
                                     max_memory = splitted_usage['memory'][0]
+                            prev_usage = splitted_usage
 
-                            prev_usage = usage
                 if prev_usage:
                     logging.debug("Remaining, add prev_usage")
                     logging.debug(prev_usage)
