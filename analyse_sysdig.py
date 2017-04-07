@@ -10,6 +10,7 @@ import datetime
 from bson import json_util
 
 from cassandra.cluster import Cluster
+from influxdb import InfluxDBClient
 
 
 logging.basicConfig(filename='sysdig_analysis.log',level=logging.DEBUG, format='%(asctime)s %(message)s')
@@ -90,7 +91,8 @@ def sysdig_event(event):
         containers[event['container.name']] = {
             'cpus': {},
             'memory': {},
-            'fd': {}
+            'fd': {},
+            'container_id': event['container.id']
         }
     if event['evt.cpu'] not in containers[event['container.name']]['cpus']:
         containers[event['container.name']]['cpus'][event['evt.cpu']] = {}
@@ -186,6 +188,32 @@ def close_sysdig_events(sysdig_containers):
         close_sysdig_event(container, sysdig_containers[container])
 
 
+def group_by_cpu(containers):
+    for name, container in containers.iteritems():
+        logging.debug("group_by_cpu container: " + name)
+        container['cpus']['all'] = {}
+        events = {}
+        events_per_process = {}
+        for cpu in list(container['cpus'].keys()):
+            for process in list(container['cpus'][cpu].keys()):
+                for usage in container['cpus'][cpu][process]['usage']:
+                    if process not in events:
+                        events_per_process[process] = {}
+                        events[process] = {
+                            'proc_name': process,
+                            'usage': [],
+                            'fd': {}
+                        }
+                    if usage['start'] not in events_per_process[process]:
+                        events_per_process[process][usage['start']] = usage
+                    else:
+                        events_per_process[process][usage['start']]['duration'] += usage['duration']
+                        if not events_per_process[process][usage['start']]['memory'] and usage['memory']:
+                            events_per_process[process][usage['start']]['memory'] = usage['memory']
+        for process, ts in events_per_process.iteritems():
+            events[process]['usage'].append(ts)
+        container['cpus']['all'] = events
+
 def group_by_seconds(sysdig_containers, merge=1):
     '''
     Merge metrics within same *merge* seconds
@@ -273,6 +301,69 @@ def group_by_seconds(sysdig_containers, merge=1):
 
     return sysdig_containers
 
+def insert_influxdb(containers):
+    host = 'localhost'
+    port = 8086
+    user = 'root'
+    password = 'root'
+    dbname = 'sysdig'
+    json_body = []
+
+    client = InfluxDBClient(host, port, user, password, dbname)
+    for name, container in containers.iteritems():
+        for cpu in list(container['cpus'].keys()):
+            for tid, thread in container['cpus'][cpu].iteritems():
+                '''
+                        {
+                            "measurement": "cpu_load_short",
+                            "tags": {
+                                "host": "server01",
+                                "region": "us-west"
+                            },
+                            "time": "2009-11-10T23:00:00Z",
+                            "fields": {
+                                "value": 0.64
+                            }
+                        }
+                '''
+                process = thread['proc_name']
+                memory = None
+                for usage in thread['usage']:
+                    measure = {
+                        'measurement': 'cpu_' + str(container['container_id']),
+                        'tags': {
+                                'cpu': str(cpu),
+                                'process': str(process),
+                                'pid': str(tid)
+                        },
+                        'time': usage['start'] / 1000000000,
+                        "fields": {
+                            "value": usage['duration']
+                        }
+                    }
+                    json_body.append(measure)
+
+                    if usage['memory']:
+                        memory = usage['memory']
+                    if memory:
+                        measure = {
+                            'measurement': 'memory_' + str(container['container_id']),
+                            'tags': {
+                                'cpu': str(cpu),
+                                'process': str(process),
+                                'tid': str(tid)
+                            },
+                            'time': usage['start'] / 1000000000,
+                            "fields": {
+                                "value": memory[0]
+                            }
+                        }
+                        json_body.append(measure)
+
+
+    client.write_points(json_body, time_precision='s')
+    logging.debug("##INFLUX" + str(json_body))
+
 last_ts = 0
 events = []
 with open('test.all.json') as sysdig_output:
@@ -294,7 +385,8 @@ logging.info(json.dumps(containers, default=json_util.default))
 
 
 merged_containers = group_by_seconds(containers, 1)
-
+#group_by_cpu(merged_containers)
+insert_influxdb(merged_containers)
 analyse = {
     'merge': 1,
     'containers': merged_containers,
@@ -304,3 +396,6 @@ analyse = {
 }
 
 logging.info(json.dumps(analyse, default=json_util.default))
+
+with open('output.json', 'w') as out:
+    json.dump(analyse, out, default=json_util.default)

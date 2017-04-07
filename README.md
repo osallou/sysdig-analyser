@@ -31,3 +31,19 @@ sysdig -pc -r test.scap  -j -c lscontainers
 save to scap at regular interval
 
 read scap files , get stats per container
+
+# Others
+
+docker run --rm -d -p 8083:8083 -p 8086:8086 \
+      -v $PWD:/var/lib/influxdb --name sysdig-influxdb \
+      influxdb
+
+docker run -d --link sysdig-influxdb:sysdig-influxdb  -p 3000:3000 grafana/grafana
+
+influx:
+
+SELECT sum("value")/1000000000 FROM "cpu_9f8aea456941" WHERE $timeFilter GROUP BY time($interval),"process" fill(null)
+
+should divide by number of CPUs for container to get percent
+
+SELECT sum("value")/(10000000 * $nbcpu) FROM "cpu_$containerid" WHERE $timeFilter GROUP BY time($interval),"process" fill(null)
