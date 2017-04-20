@@ -34,11 +34,15 @@ read scap files , get stats per container
 
 # Others
 
+# influxdb + grafana
+
 docker run --rm -d -p 8083:8083 -p 8086:8086 \
       -v $PWD:/var/lib/influxdb --name sysdig-influxdb \
       influxdb
 
 docker run -d --link sysdig-influxdb:sysdig-influxdb  -p 3000:3000 grafana/grafana
+
+## cpu
 
 influx:
 
@@ -47,3 +51,16 @@ SELECT sum("value")/1000000000 FROM "cpu_9f8aea456941" WHERE $timeFilter GROUP B
 should divide by number of CPUs for container to get percent
 
 SELECT sum("value")/(10000000 * $nbcpu) FROM "cpu_$containerid" WHERE $timeFilter GROUP BY time($interval),"process" fill(null)
+
+
+From url set nbcpu:
+
+http://localhost:3000/dashboard/db/container-analysis?from=1490964299726&to=1490964337850&var-nbcpu=2&var-containerid=9f8aea456941
+
+replace from/to/nbcpu with known values from job
+
+
+
+## Memory
+
+SELECT max("value")*1000 FROM "memory_9f8aea456941" WHERE $timeFilter GROUP BY time($interval),"process" fill(null)

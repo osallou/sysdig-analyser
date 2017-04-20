@@ -66,9 +66,9 @@ def __vm_info(evt_info):
 
 def __fd_info(evt_info):
     fd = __vm_re('fd=(\d+)', evt_info)
-    name =  __re('name=(.*)', evt_info)
+    name =  __re('name=(.*?)\s+', evt_info)
     if not name:
-        name =  __re('\(<f>(.*)\)', evt_info)
+        name =  __re('\(<\w+>(.*?)\)', evt_info)
     return (fd, name)
 
 def __io_info(evt_info):
@@ -103,7 +103,8 @@ def sysdig_event(event):
             'proc_name': event['proc.name'],
             'usage': [],
             'last_cpu': None,
-            'fd': {}
+            'fd': {},
+            'io': []
         }
         new_thread = True
     containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
@@ -120,6 +121,7 @@ def sysdig_event(event):
             'memory': (vm_size, vm_rss, vm_swap)
         })
         containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu'] = None
+        containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'] = {}
 
     else:
         (vm_size, vm_rss, vm_swap) = __vm_info(event['evt.info'])
@@ -139,6 +141,15 @@ def sysdig_event(event):
             if fd not in containers[event['container.name']]['fd']:
                 containers[event['container.name']]['fd'][fd] = {}
             containers[event['container.name']]['fd'][fd][event['proc.name']] = name
+            containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['io'].append({
+                'start': event['evt.outputtime'],
+                'start_date': datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000),
+                'debug_date': str(datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000)),
+                'name': name,
+                'length': 0,
+                'in': 0,
+                'out': 0
+            })
 
         (fd, length) = __io_info(event['evt.info'])
         if fd and length:
@@ -156,6 +167,25 @@ def sysdig_event(event):
                 if name not in containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd]:
                     containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd][name] =0
                 containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd][name] += length
+                io_event = {
+                    'start': event['evt.outputtime'],
+                    'start_date': datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000),
+                    'debug_date': str(datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000)),
+                    'name': name,
+                    'length': length,
+                    'in': 0,
+                    'out': 0
+                }
+                if event['evt.dir'] == '>':
+                    io_event['in'] = length
+                else:
+                    io_event['out'] = length
+                containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['io'].append(io_event)
+
+            if name not in containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd']:
+                containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][name] = length
+            else:
+                containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][name] += length
 
         if not containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu']:
             # startup of this thread
@@ -187,33 +217,6 @@ def close_sysdig_events(sysdig_containers):
     for container in list(sysdig_containers.keys()):
         close_sysdig_event(container, sysdig_containers[container])
 
-
-def group_by_cpu(containers):
-    for name, container in containers.iteritems():
-        logging.debug("group_by_cpu container: " + name)
-        container['cpus']['all'] = {}
-        events = {}
-        events_per_process = {}
-        for cpu in list(container['cpus'].keys()):
-            for process in list(container['cpus'][cpu].keys()):
-                for usage in container['cpus'][cpu][process]['usage']:
-                    if process not in events:
-                        events_per_process[process] = {}
-                        events[process] = {
-                            'proc_name': process,
-                            'usage': [],
-                            'fd': {}
-                        }
-                    if usage['start'] not in events_per_process[process]:
-                        events_per_process[process][usage['start']] = usage
-                    else:
-                        events_per_process[process][usage['start']]['duration'] += usage['duration']
-                        if not events_per_process[process][usage['start']]['memory'] and usage['memory']:
-                            events_per_process[process][usage['start']]['memory'] = usage['memory']
-        for process, ts in events_per_process.iteritems():
-            events[process]['usage'].append(ts)
-        container['cpus']['all'] = events
-
 def group_by_seconds(sysdig_containers, merge=1):
     '''
     Merge metrics within same *merge* seconds
@@ -232,6 +235,37 @@ def group_by_seconds(sysdig_containers, merge=1):
             for tid, thread in container['cpus'][cpu].iteritems():
                 # logging.error(thread)
                 logging.debug("tid: " + str(tid))
+                if len(thread['io']) > 0:
+                    prev_thread_io = thread['io']
+                    thread['io'] = []
+                    first_io = True
+                    prev_io = {}
+                    for thread_io in prev_thread_io:
+                        if first_io:
+                            current_ts = thread_io['start_date']
+                            first_io = False
+                        if thread_io['start_date'] >= current_ts and thread_io['start_date'] < current_ts + datetime.timedelta(seconds=merge):
+                            # Merge with previous
+                            if thread_io['name'] not in prev_io:
+                                prev_io[thread_io['name']] = {
+                                    'in': thread_io['in'],
+                                    'out': thread_io['out'],
+                                    'start': thread_io['start'],
+                                    'start_date': thread_io['start_date'],
+                                    'debug_date': thread_io['debug_date']
+                                }
+                                # prev_io[thread_io['name']] = thread_io['length']
+                            else:
+                                prev_io[thread_io['name']]['in'] += thread_io['in']
+                                prev_io[thread_io['name']]['out'] += thread_io['out']
+                        else:
+                            thread['io'].append(prev_io)
+                            current_ts = thread_io['start_date']
+                            prev_io = {}
+                    if len(prev_io.keys()) > 0:
+                        thread['io'].append(prev_io)
+
+
                 if len(thread['usage']) == 0:
                     continue
                 prev_usages = thread['usage']
@@ -271,6 +305,7 @@ def group_by_seconds(sysdig_containers, merge=1):
                         splitted_usages = [usage]
                     logging.debug('splitted events: ' + str(splitted_usages))
                     for splitted_usage in splitted_usages:
+                        splitted_usage['total'] = merge * 1000000000
                         logging.debug("Start: " + str(splitted_usage['start_date']) + " vs " + str(current_ts))
                         logging.debug("Next: " + str(splitted_usage['start_date']) + " vs " + str(next_ts))
                         logging.debug(str(splitted_usage))
@@ -343,6 +378,18 @@ def insert_influxdb(containers):
                     }
                     json_body.append(measure)
 
+                    measure = {
+                        'measurement': 'total_cpu_' + str(container['container_id']),
+                        'tags': {
+                                'cpu': str(cpu),
+                        },
+                        'time': usage['start'] / 1000000000,
+                        "fields": {
+                            "value": usage['total']
+                        }
+                    }
+                    json_body.append(measure)
+
                     if usage['memory']:
                         memory = usage['memory']
                     if memory:
@@ -385,8 +432,8 @@ logging.info(json.dumps(containers, default=json_util.default))
 
 
 merged_containers = group_by_seconds(containers, 1)
-#group_by_cpu(merged_containers)
-insert_influxdb(merged_containers)
+
+# insert_influxdb(merged_containers)
 analyse = {
     'merge': 1,
     'containers': merged_containers,
