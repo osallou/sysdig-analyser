@@ -130,6 +130,7 @@ def sysdig_event(event):
         return
     # logging.debug('Container event: %s' % (event['container.name']))
     logging.debug(str(event))
+    utid = event['proc.name'] + '(' + str(event['thread.vtid']) + ')'
     if event['container.name'] not in containers:
         containers[event['container.name']] = {
             'procs': {},
@@ -143,12 +144,12 @@ def sysdig_event(event):
         containers[event['container.name']]['cpus'][event['evt.cpu']] = {}
 
     new_thread  = False
-    if event['thread.vtid'] not in containers[event['container.name']]['procs']:
-        containers[event['container.name']]['procs'][event['thread.vtid']] = event['proc.name']
+    if utid not in containers[event['container.name']]['procs']:
+        containers[event['container.name']]['procs'][utid] = event['proc.name']
     else:
-        containers[event['container.name']]['procs'][event['thread.vtid']] = event['proc.name']
+        containers[event['container.name']]['procs'][utid] = event['proc.name']
     if event['thread.vtid'] not in containers[event['container.name']]['cpus'][event['evt.cpu']]:
-        containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']] = {
+        containers[event['container.name']]['cpus'][event['evt.cpu']][utid] = {
             'proc_name': event['proc.name'],
             'usage': [],
             'last_cpu': None,
@@ -156,21 +157,21 @@ def sysdig_event(event):
             'io': []
         }
         new_thread = True
-    containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
-    if event['evt.type'] == 'switch':
-        if not containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu']:
-            containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu'] = begin_ts
+    containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
+    if event['evt.type'] == 'switch' or event['evt.type'] == 'procexit':
+        if not containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu']:
+            containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = begin_ts
         # thread is paused in favor of an other thread
         (vm_size, vm_rss, vm_swap) = __vm_info(event['evt.info'])
-        containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['usage'].append({
-            'start': containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu'],
-            'start_date': datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu'] // 1000000000),
-            'debug_date': str(datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu'] // 1000000000)),
-            'duration': event['evt.outputtime'] - containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu'],
+        containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['usage'].append({
+            'start': containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
+            'start_date': datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000),
+            'debug_date': str(datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000)),
+            'duration': event['evt.outputtime'] - containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
             'memory': (vm_size, vm_rss, vm_swap)
         })
-        containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu'] = None
-        containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'] = {}
+        containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = None
+        containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'] = {}
 
     else:
         (vm_size, vm_rss, vm_swap) = __vm_info(event['evt.info'])
@@ -220,7 +221,7 @@ def sysdig_event(event):
                 'length': 0,
                 'in': 0,
                 'out': 0,
-                'proc': event['proc.name']
+                'proc': utid
             })
             '''
             containers[event['container.name']]['io'][event['thread.vtid']].append({
@@ -247,14 +248,14 @@ def sysdig_event(event):
             if fd in containers[event['container.name']]['fd'] and event['proc.name'] in containers[event['container.name']]['fd'][fd]:
                 logging.debug("#FD FOUND " + str(containers[event['container.name']]['fd'][fd][event['proc.name']]))
                 name = containers[event['container.name']]['fd'][fd][event['proc.name']]
-            if fd not in containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd']:
-                containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd] = {}
+            if fd not in containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd']:
+                containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][fd] = {}
             if not name:
                 name = 'fd_unknown'
             if name:
-                if name not in containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd]:
-                    containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd][name] =0
-                containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][fd][name] += length
+                if name not in containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][fd]:
+                    containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][fd][name] =0
+                containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][fd][name] += length
                 io_event = {
                     'start': event['evt.outputtime'],
                     'start_date': datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000),
@@ -263,7 +264,7 @@ def sysdig_event(event):
                     'length': length,
                     'in': 0,
                     'out': 0,
-                    'proc': event['proc.name']
+                    'proc': utid
                 }
 
                 if event['evt.type'] == 'write':
@@ -276,15 +277,15 @@ def sysdig_event(event):
                 #     containers[event['container.name']]['io'][event['thread.vtid']] = []
                 # containers[event['container.name']]['io'][event['thread.vtid']].append(io_event)
 
-            if name not in containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd']:
-                containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][name] = length
+            if name not in containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd']:
+                containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][name] = length
             else:
-                containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][name] += length
+                containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][name] += length
 
-        if not containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu']:
+        if not containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu']:
             # startup of this thread
-            containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['last_cpu'] = event['evt.outputtime']
-            logging.error("##UPDATE " + str(containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]))
+            containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = event['evt.outputtime']
+            logging.error("##UPDATE " + str(containers[event['container.name']]['cpus'][event['evt.cpu']][utid]))
         else:
             # continue processing
             pass
@@ -432,8 +433,8 @@ def group_by_seconds(sysdig_containers, merge=1):
                     logging.debug('splitted events: ' + str(splitted_usages))
                     for splitted_usage in splitted_usages:
                         splitted_usage['cpu'] = cpu
-                        splitted_usage['proc'] = container['procs'][tid]
-                        __cassandra_cpu(splitted_usage)
+                        splitted_usage['proc'] = tid
+                        # __cassandra_cpu(splitted_usage)
                         splitted_usage['total'] = merge * 1000000000
                         logging.debug("Start: " + str(splitted_usage['start_date']) + " vs " + str(current_ts))
                         logging.debug("Next: " + str(splitted_usage['start_date']) + " vs " + str(next_ts))
@@ -441,6 +442,7 @@ def group_by_seconds(sysdig_containers, merge=1):
                         if splitted_usage['start_date'] >= next_ts and prev_usage:
                             logging.debug("add prev usage")
                             thread['usage'].append(prev_usage)
+                            __cassandra_cpu(prev_usage)
                             prev_usage = None
                         while splitted_usage['start_date'] >= next_ts:
                             current_ts += datetime.timedelta(seconds=merge)
@@ -461,6 +463,7 @@ def group_by_seconds(sysdig_containers, merge=1):
                     logging.debug("Remaining, add prev_usage")
                     logging.debug(prev_usage)
                     thread['usage'].append(prev_usage)
+                    __cassandra_cpu(prev_usage)
 
 
     return sysdig_containers
