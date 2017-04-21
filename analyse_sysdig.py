@@ -15,12 +15,49 @@ from influxdb import InfluxDBClient
 
 logging.basicConfig(filename='sysdig_analysis.log',level=logging.DEBUG, format='%(asctime)s %(message)s')
 
-'''
+
 cluster = Cluster()
 session = cluster.connect('sysdig')
-'''
+
 
 containers = {}
+
+
+def __cassandra_io(event):
+    session.execute(
+    """
+    UPDATE io
+    SET io_in = io_in + %s,
+        io_out = io_out + %s
+    WHERE ts=%s AND proc_name=%s AND file_name=%s
+    """,
+    (event['in'], event['out'], event['start'] // 1000000000 * 1000, event['proc'], event['name'])
+    )
+
+
+def __cassandra_mem(event):
+    session.execute(
+    """
+    UPDATE mem
+    SET vm_size = vm_size + %s,
+        vm_rss = vm_rss + %s,
+        vm_swap = vm_swap + %s
+    WHERE ts=%s AND proc_name=%s
+    """,
+    (event['vm_size'], event['vm_rss'], event['vm_swap'], event['start'] // 1000000000 * 1000, event['proc'])
+    )
+
+def __cassandra_cpu(event):
+    print(str(event))
+    session.execute(
+    """
+    UPDATE cpu
+    SET duration = duration + %s
+    WHERE ts=%s AND proc_name=%s AND cpu=%s
+    """,
+    (event['duration'], event['start'] // 1000000000 * 1000, event['proc'], event['cpu'])
+    )
+
 
 def __cassandra_insert(event):
     if event['thread.vtid'] is None:
@@ -66,7 +103,11 @@ def __vm_info(evt_info):
 
 def __fd_info(evt_info):
     fd = __vm_re('fd=(\d+)', evt_info)
-    name =  __re('name=(.*?)\s+', evt_info)
+    name =  __re('fd=\d+\((<\w+>.*?)\)', evt_info)
+    if name and __re('^(<\w+>)$', name):
+        return (None, None)
+    if not name:
+        name =  __re('name=(.*?)\s+', evt_info)
     if not name:
         name =  __re('\(<\w+>(.*?)\)', evt_info)
     return (fd, name)
@@ -74,6 +115,8 @@ def __fd_info(evt_info):
 def __io_info(evt_info):
     fd = __vm_re('fd=(\d+)', evt_info)
     length =  __vm_re('length=(\d+)', evt_info)
+    if not length:
+        length =  __vm_re('size=(\d+)', evt_info)
     if fd and length:
         return (fd, length)
     else:
@@ -89,15 +132,21 @@ def sysdig_event(event):
     logging.debug(str(event))
     if event['container.name'] not in containers:
         containers[event['container.name']] = {
+            'procs': {},
             'cpus': {},
             'memory': {},
             'fd': {},
+            'io': {},
             'container_id': event['container.id']
         }
     if event['evt.cpu'] not in containers[event['container.name']]['cpus']:
         containers[event['container.name']]['cpus'][event['evt.cpu']] = {}
 
     new_thread  = False
+    if event['thread.vtid'] not in containers[event['container.name']]['procs']:
+        containers[event['container.name']]['procs'][event['thread.vtid']] = event['proc.name']
+    else:
+        containers[event['container.name']]['procs'][event['thread.vtid']] = event['proc.name']
     if event['thread.vtid'] not in containers[event['container.name']]['cpus'][event['evt.cpu']]:
         containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']] = {
             'proc_name': event['proc.name'],
@@ -128,6 +177,14 @@ def sysdig_event(event):
 
         if vm_size > 0 or vm_rss > 0 or vm_swap > 0:
             # Update memory info
+            __cassandra_mem({
+                'start': event['evt.outputtime'],
+                'vm_size': vm_size,
+                'vm_rss': vm_rss,
+                'vm_swap': vm_swap,
+                'proc': event['proc.name']
+            })
+            '''
             if event['thread.vtid'] not in containers[event['container.name']]['memory']:
                 containers[event['container.name']]['memory'][event['thread.vtid']] = []
             containers[event['container.name']]['memory'][event['thread.vtid']].append({
@@ -135,12 +192,14 @@ def sysdig_event(event):
                 'value': (vm_size, vm_rss, vm_swap),
                 'proc_name': event['proc.name']
             })
+            '''
 
         (fd, name) = __fd_info(event['evt.info'])
         if fd and name:
             if fd not in containers[event['container.name']]['fd']:
                 containers[event['container.name']]['fd'][fd] = {}
             containers[event['container.name']]['fd'][fd][event['proc.name']] = name
+            '''
             containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['io'].append({
                 'start': event['evt.outputtime'],
                 'start_date': datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000),
@@ -150,8 +209,37 @@ def sysdig_event(event):
                 'in': 0,
                 'out': 0
             })
+            if event['thread.vtid'] not in containers[event['container.name']]['io']:
+                containers[event['container.name']]['io'][event['thread.vtid']] = []
+            '''
+            __cassandra_io({
+                'start': event['evt.outputtime'],
+                'start_date': datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000),
+                'debug_date': str(datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000)),
+                'name': name,
+                'length': 0,
+                'in': 0,
+                'out': 0,
+                'proc': event['proc.name']
+            })
+            '''
+            containers[event['container.name']]['io'][event['thread.vtid']].append({
+                'start': event['evt.outputtime'],
+                'start_date': datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000),
+                'debug_date': str(datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000)),
+                'name': name,
+                'length': 0,
+                'in': 0,
+                'out': 0,
+                'proc': event['proc.name']
+            })
+            '''
 
         (fd, length) = __io_info(event['evt.info'])
+        '''
+        if fd==3 and event['evt.dir'] == '>':
+            print("Write in 3: " + str(length))
+        '''
         if fd and length:
             name = None
             logging.debug('#FD: ' + str(fd))
@@ -174,13 +262,19 @@ def sysdig_event(event):
                     'name': name,
                     'length': length,
                     'in': 0,
-                    'out': 0
+                    'out': 0,
+                    'proc': event['proc.name']
                 }
-                if event['evt.dir'] == '>':
-                    io_event['in'] = length
-                else:
+
+                if event['evt.type'] == 'write':
                     io_event['out'] = length
-                containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['io'].append(io_event)
+                else:
+                    io_event['in'] = length
+                # containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['io'].append(io_event)
+                __cassandra_io(io_event)
+                # if event['thread.vtid'] not in containers[event['container.name']]['io']:
+                #     containers[event['container.name']]['io'][event['thread.vtid']] = []
+                # containers[event['container.name']]['io'][event['thread.vtid']].append(io_event)
 
             if name not in containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd']:
                 containers[event['container.name']]['cpus'][event['evt.cpu']][event['thread.vtid']]['fd'][name] = length
@@ -230,6 +324,38 @@ def group_by_seconds(sysdig_containers, merge=1):
     for name, container in sysdig_containers.iteritems():
         logging.debug("container: " + name)
         merged_containers[name] = copy.deepcopy(container)
+        # io
+        for proc in container['io'].keys():
+            proc_io = container['io'][proc]
+            if len(proc_io) > 0:
+                    prev_thread_io = proc_io
+                    proc_io = []
+                    first_io = True
+                    prev_io = {}
+                    for thread_io in prev_thread_io:
+                        if first_io:
+                            current_ts = thread_io['start_date']
+                            first_io = False
+                        if thread_io['start_date'] >= current_ts and thread_io['start_date'] < current_ts + datetime.timedelta(seconds=merge):
+                            # Merge with previous
+                            if thread_io['name'] not in prev_io:
+                                prev_io[thread_io['name']] = {
+                                    'in': thread_io['in'],
+                                    'out': thread_io['out'],
+                                    'start': thread_io['start'],
+                                    'start_date': thread_io['start_date'],
+                                    'debug_date': thread_io['debug_date']
+                                }
+                                # prev_io[thread_io['name']] = thread_io['length']
+                            else:
+                                prev_io[thread_io['name']]['in'] += thread_io['in']
+                                prev_io[thread_io['name']]['out'] += thread_io['out']
+                        else:
+                            proc_io.append(prev_io)
+                            current_ts = thread_io['start_date']
+                            prev_io = {}
+                    if len(prev_io.keys()) > 0:
+                        proc_io.append(prev_io)
         for cpu in list(container['cpus'].keys()):
             logging.debug("cpu: " + str(cpu))
             for tid, thread in container['cpus'][cpu].iteritems():
@@ -305,6 +431,9 @@ def group_by_seconds(sysdig_containers, merge=1):
                         splitted_usages = [usage]
                     logging.debug('splitted events: ' + str(splitted_usages))
                     for splitted_usage in splitted_usages:
+                        splitted_usage['cpu'] = cpu
+                        splitted_usage['proc'] = container['procs'][tid]
+                        __cassandra_cpu(splitted_usage)
                         splitted_usage['total'] = merge * 1000000000
                         logging.debug("Start: " + str(splitted_usage['start_date']) + " vs " + str(current_ts))
                         logging.debug("Next: " + str(splitted_usage['start_date']) + " vs " + str(next_ts))

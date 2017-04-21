@@ -7,6 +7,7 @@ program reads sysdig scap output files and calculate cpu usage, fd accesses etc.
 # To execute sysdig
 
 docker run -it --rm --name=sysdig --privileged=true \
+           -v ${PWD}:/mnt/sysdig \
            --volume=/var/run/docker.sock:/host/var/run/docker.sock \
            --volume=/dev:/host/dev \
            --volume=/proc:/host/proc:ro \
@@ -63,4 +64,15 @@ replace from/to/nbcpu with known values from job
 
 ## Memory
 
-SELECT max("value")*1000 FROM "memory_9f8aea456941" WHERE $timeFilter GROUP BY time($interval),"process" fill(null)
+    SELECT max("value")*1000 FROM "memory_9f8aea456941" WHERE $timeFilter GROUP BY time($interval),"process" fill(null)
+
+
+## cassandra
+
+            CREATE KEYSPACE <ksname>
+                WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
+
+            USE sysdig;
+            CREATE TABLE io (io_in counter, io_out counter, ts timestamp, proc_name varchar, file_name varchar, PRIMARY KEY (ts, proc_name, file_name));
+            CREATE TABLE mem (vm_size counter, vm_rss counter, vm_swap counter, ts timestamp, proc_name varchar, PRIMARY KEY (ts, proc_name));
+            CREATE TABLE cpu (duration counter, cpu int, ts timestamp, proc_name varchar, PRIMARY KEY (ts, proc_name, cpu));
