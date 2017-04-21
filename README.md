@@ -4,6 +4,13 @@ this work is in progress and should not be used as is.
 
 program reads sysdig scap output files and calculate cpu usage, fd accesses etc.. for a container.
 
+# status
+
+io access and mem cassandra insertion looks fine
+cpu is inserted , but cpu usage looks wrong, to be investigated
+
+insertion is based on per second aggregation, then other process could aggregate per 10s/1h/1d or like for graph and access, old  per second data would be deleted
+
 # To execute sysdig
 
 docker run -it --rm --name=sysdig --privileged=true \
