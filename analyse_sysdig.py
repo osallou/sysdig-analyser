@@ -63,10 +63,12 @@ def __cassandra_proc(event):
     """
     UPDATE proc
     SET parent_id = %s,
-        proc_name = %s
+        proc_name = %s,
+        exe=%s,
+        args=%s
     WHERE proc_id=%s
     """,
-    (event['parent_id'], event['proc_name'], event['proc_id'])
+    (event['parent_id'], event['proc_name'], event['exe'], event['args'], event['proc_id'])
     )
 
 def __cassandra_insert(event):
@@ -136,6 +138,14 @@ def __clone_info(evt_info):
     res = __vm_re('res=(\d+)', evt_info)
     return res
 
+
+def __exec_info(evt_info):
+    exe = __re('exe=(\w+)', evt_info)
+    args = None
+    if exe:
+        args = __re('args=(.*) tid=', evt_info)
+    return (exe, args)
+
 def sysdig_event(event):
     if event['proc.name'] == 'sysdig':
         return
@@ -150,6 +160,7 @@ def sysdig_event(event):
         containers[event['container.name']] = {
             'hierarchy': {},
             'procs': {},
+            'commands': {},
             'cpus': {},
             'memory': {},
             'fd': {},
@@ -186,6 +197,12 @@ def sysdig_event(event):
         new_thread = True
     if event["evt.type"] == "execve":
         # Execute a process, takes proc id
+        (exe, args) = __exec_info(event['evt.info'])
+        if exe:
+            containers[event['container.name']]['commands'][utid]= {
+                'exe': exe,
+                'args': args
+            }
         containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
         containers[event['container.name']]['procs'][utid] = event['proc.name']
     if event['evt.type'] == 'switch' or event['evt.type'] == 'procexit' or event['evt.type'] == 'exit_group':
@@ -569,7 +586,6 @@ def insert_influxdb(containers):
 
 
     client.write_points(json_body, time_precision='s')
-    logging.debug("##INFLUX" + str(json_body))
 
 last_ts = 0
 events = []
@@ -596,10 +612,17 @@ merged_containers = group_by_seconds(containers, 1)
 # hierarchy and proc info
 for name, container in containers.iteritems():
     for proc_id, proc_info in container['hierarchy'].iteritems():
+        exe = container['procs'][str(proc_id)]
+        args = ''
+        if str(proc_id) in container['commands']:
+            exe = container['commands'][str(proc_id)]['exe']
+            args = container['commands'][str(proc_id)]['args']
         __cassandra_proc({
             'proc_id': int(proc_id),
             'proc_name': container['procs'][str(proc_id)],
-            'parent_id': container['hierarchy'][proc_id]
+            'parent_id': container['hierarchy'][proc_id],
+            'exe': exe,
+            'args': args
         })
 
 
