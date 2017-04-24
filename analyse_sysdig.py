@@ -48,7 +48,6 @@ def __cassandra_mem(event):
     )
 
 def __cassandra_cpu(event):
-    print(str(event))
     session.execute(
     """
     UPDATE cpu
@@ -122,6 +121,10 @@ def __io_info(evt_info):
     else:
         return (None, None)
 
+def __clone_info(evt_info):
+    res = __vm_re('res=(\d+)', evt_info)
+    return res
+
 def sysdig_event(event):
     if event['proc.name'] == 'sysdig':
         return
@@ -134,6 +137,7 @@ def sysdig_event(event):
     utid = str(event['thread.vtid'])
     if event['container.name'] not in containers:
         containers[event['container.name']] = {
+            'hierarchy': {},
             'procs': {},
             'cpus': {},
             'memory': {},
@@ -141,6 +145,13 @@ def sysdig_event(event):
             'io': {},
             'container_id': event['container.id']
         }
+
+    if event['evt.type'] == 'clone':
+        child = __clone_info(event['evt.info'])
+        parent = event['thread.vtid']
+        if child > 0:
+            containers[event['container.name']]['hierarchy'][child] = parent
+
     if event['evt.cpu'] not in containers[event['container.name']]['cpus']:
         containers[event['container.name']]['cpus'][event['evt.cpu']] = {}
 
@@ -245,10 +256,7 @@ def sysdig_event(event):
             '''
 
         (fd, length) = __io_info(event['evt.info'])
-        '''
-        if fd==3 and event['evt.dir'] == '>':
-            print("Write in 3: " + str(length))
-        '''
+
         if fd and length:
             name = None
             logging.debug('#FD: ' + str(fd))
