@@ -186,7 +186,7 @@ def sysdig_event(event):
         containers[event['container.name']]['procs'][utid] = event['proc.name']
     '''
 
-    if event['thread.vtid'] not in containers[event['container.name']]['cpus'][event['evt.cpu']]:
+    if utid not in containers[event['container.name']]['cpus'][event['evt.cpu']]:
         containers[event['container.name']]['cpus'][event['evt.cpu']][utid] = {
             'proc_name': event['proc.name'],
             'usage': [],
@@ -205,7 +205,8 @@ def sysdig_event(event):
             }
         containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
         containers[event['container.name']]['procs'][utid] = event['proc.name']
-    if event['evt.type'] == 'switch' or event['evt.type'] == 'procexit' or event['evt.type'] == 'exit_group':
+
+    if event['evt.type'] == 'switch' or event['evt.type'] == 'procexit':
         if not containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu']:
             containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = begin_ts
         # thread is paused in favor of an other thread
@@ -467,7 +468,7 @@ def group_by_seconds(sysdig_containers, merge=1):
                         for index in range(nb_elts):
                             splitted_usage = copy.deepcopy(usage)
                             splitted_usage['duration'] = min(merge * 1000000000, remaining_duration)
-                            splitted_usage['start'] += splitted_usage['duration'] + (merge * 1000000000 * index)
+                            splitted_usage['start'] += (merge * 1000000000 * index)
                             splitted_usage['start_date'] = datetime.datetime.fromtimestamp(splitted_usage['start'] // 1000000000)
                             splitted_usage['debug_date'] = str(splitted_usage['start_date'])
                             splitted_usages.append(splitted_usage)
