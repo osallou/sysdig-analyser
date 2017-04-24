@@ -57,6 +57,17 @@ def __cassandra_cpu(event):
     (event['duration'], event['start'] // 1000000000 * 1000, event['proc'], event['cpu'])
     )
 
+# CREATE TABLE proc (ts timestamp, proc_name varchar, proc_id int, parent_id int, PRIMARY KEY (ts, proc_id));
+def __cassandra_proc(event):
+    session.execute(
+    """
+    UPDATE proc
+    SET parent_id = %s,
+        proc_name = %s
+    WHERE proc_id=%s
+    """,
+    (event['parent_id'], event['proc_name'], event['proc_id'])
+    )
 
 def __cassandra_insert(event):
     if event['thread.vtid'] is None:
@@ -581,6 +592,16 @@ logging.info(json.dumps(containers, default=json_util.default))
 
 
 merged_containers = group_by_seconds(containers, 1)
+
+# hierarchy and proc info
+for name, container in containers.iteritems():
+    for proc_id, proc_info in container['hierarchy'].iteritems():
+        __cassandra_proc({
+            'proc_id': int(proc_id),
+            'proc_name': container['procs'][str(proc_id)],
+            'parent_id': container['hierarchy'][proc_id]
+        })
+
 
 # insert_influxdb(merged_containers)
 analyse = {
