@@ -130,7 +130,8 @@ def sysdig_event(event):
         return
     # logging.debug('Container event: %s' % (event['container.name']))
     logging.debug(str(event))
-    utid = event['proc.name'] + '(' + str(event['thread.vtid']) + ')'
+    # utid = event['proc.name'] + '(' + str(event['thread.vtid']) + ')'
+    utid = str(event['thread.vtid'])
     if event['container.name'] not in containers:
         containers[event['container.name']] = {
             'procs': {},
@@ -144,10 +145,14 @@ def sysdig_event(event):
         containers[event['container.name']]['cpus'][event['evt.cpu']] = {}
 
     new_thread  = False
+    containers[event['container.name']]['procs'][utid] = event['proc.name']
+    '''
     if utid not in containers[event['container.name']]['procs']:
         containers[event['container.name']]['procs'][utid] = event['proc.name']
     else:
         containers[event['container.name']]['procs'][utid] = event['proc.name']
+    '''
+
     if event['thread.vtid'] not in containers[event['container.name']]['cpus'][event['evt.cpu']]:
         containers[event['container.name']]['cpus'][event['evt.cpu']][utid] = {
             'proc_name': event['proc.name'],
@@ -157,8 +162,11 @@ def sysdig_event(event):
             'io': []
         }
         new_thread = True
-    containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
-    if event['evt.type'] == 'switch' or event['evt.type'] == 'procexit':
+    if event["evt.type"] == "execve":
+        # Execute a process, takes proc id
+        containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
+        containers[event['container.name']]['procs'][utid] = event['proc.name']
+    if event['evt.type'] == 'switch' or event['evt.type'] == 'procexit' or event['evt.type'] == 'exit_group':
         if not containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu']:
             containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = begin_ts
         # thread is paused in favor of an other thread
@@ -433,7 +441,8 @@ def group_by_seconds(sysdig_containers, merge=1):
                     logging.debug('splitted events: ' + str(splitted_usages))
                     for splitted_usage in splitted_usages:
                         splitted_usage['cpu'] = cpu
-                        splitted_usage['proc'] = tid
+                        # splitted_usage['proc'] = tid
+                        splitted_usage['proc'] =  container['procs'][tid]+'(' + tid + ')'
                         # __cassandra_cpu(splitted_usage)
                         splitted_usage['total'] = merge * 1000000000
                         logging.debug("Start: " + str(splitted_usage['start_date']) + " vs " + str(current_ts))
