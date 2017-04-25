@@ -57,6 +57,16 @@ def __cassandra_cpu(event):
     (event['duration'], event['start'] // 1000000000 * 1000, event['proc'], event['cpu'])
     )
 
+def __cassandra_cpu_all(event):
+    session.execute(
+    """
+    UPDATE cpu_all
+    SET duration = duration + %s
+    WHERE ts=%s AND proc_name=%s
+    """,
+    (event['duration'], event['start'] // 1000000000 * 1000, event['proc'])
+    )
+
 # CREATE TABLE proc (ts timestamp, proc_name varchar, proc_id int, parent_id int, PRIMARY KEY (ts, proc_id));
 def __cassandra_proc(event):
     session.execute(
@@ -489,6 +499,7 @@ def group_by_seconds(sysdig_containers, merge=1):
                             logging.debug("add prev usage")
                             thread['usage'].append(prev_usage)
                             __cassandra_cpu(prev_usage)
+                            __cassandra_cpu_all(prev_usage)
                             prev_usage = None
                         while splitted_usage['start_date'] >= next_ts:
                             current_ts += datetime.timedelta(seconds=merge)
@@ -510,6 +521,7 @@ def group_by_seconds(sysdig_containers, merge=1):
                     logging.debug(prev_usage)
                     thread['usage'].append(prev_usage)
                     __cassandra_cpu(prev_usage)
+                    __cassandra_cpu_all(prev_usage)
 
 
     return sysdig_containers
