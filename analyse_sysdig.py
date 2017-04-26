@@ -33,6 +33,15 @@ def __cassandra_io(event):
     """,
     (event['in'], event['out'], event['start'] // 1000000000 * 1000, event['proc'], event['name'])
     )
+    session.execute(
+    """
+    UPDATE io_all
+    SET io_in = io_in + %s,
+        io_out = io_out + %s
+    WHERE proc_name=%s AND file_name=%s
+    """,
+    (event['in'], event['out'], event['proc'], event['name'])
+    )
 
 
 def __cassandra_mem(event):

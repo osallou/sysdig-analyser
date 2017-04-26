@@ -1,0 +1,285 @@
+<html>
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="metrics-graphics-2.11.0/dist/metricsgraphics.min.js"></script>
+    <script src="bower_components/vis/dist/vis.min.js"></script>
+    <link href="bower_components/bootstrap/dist/css/bootstrap.min.css" type="text/css" rel="stylesheet"/>
+    <link href="metrics-graphics-2.11.0/dist/metricsgraphics.css" type="text/css" rel="stylesheet"/>
+    <link href="bower_components/vis/dist/vis.min.css" type="text/css" rel="stylesheet"/>
+</head>
+<body>
+    <div class="well">Sysdig test analysis</div>
+    <h2>CPU</h2>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="row">
+                <div id="mychart_cpu0"></div>
+            </div>
+        </div>
+        </div>
+    </div>
+    <h2>Memory</h2>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="row">
+                <div id="mychart_mem"></div>
+            </div>
+        </div>
+    </div>
+
+    <h2>Processes</h2>
+    <div class="row">
+        <div id="procs_relationship">
+        </div>
+    </div>
+
+
+    <div class="row">
+        <div class="col-md-6">
+            <table id="io" class="table-condensed table-striped table-bordered">
+                <thead>
+                    <th>Process id</th><th>File name</th><th>Bytes in</th><th>Bytes out</th>
+                </thead>
+                <tbody id="io_all_list">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+
+    var nb_cpus = 3;
+    var procs = {};
+
+
+    function get_memory_data(data){
+        var container_memory = data.containers.competent_thompson.memory;
+        memory_processes = [];
+        memory_data = [];
+        procs = {}
+        for(var key in container_memory){
+            var procdata = [];
+            for(var i=0;i<container_memory[key].length;i++){
+                procs[key] = container_memory[key][i]['proc_name']
+                    procdata.push({
+                        "date": new Date((container_memory[key][i]['ts'] / 1000000)),
+                        "value": container_memory[key][i]['value'][0] * 1000
+                    });
+            }
+            memory_data.push(procdata);
+        }
+        for(var procid in procs){
+            memory_processes.push(procs[procid]);
+        }
+        return {'data': memory_data, 'procs': memory_processes}
+    }
+
+    function get_cpu_data(data, cpu){
+        var container_cpu0 = data.containers.competent_thompson.cpus[cpu];
+        var cpu_processes = [];
+        var cpu0_data = [];
+        var ios = {}
+        for(var key in container_cpu0){
+            cpu_processes.push(container_cpu0[key]['proc_name']);
+            var procdata = [];
+            for(var i=0;i<container_cpu0[key]['usage'].length;i++){
+                    procdata.push({
+                        "date": new Date((container_cpu0[key]['usage'][i]['start'] / 1000000)),
+                        "value": container_cpu0[key]['usage'][i]['duration'] * 100 / (data.merge * 1000000000)
+                    });
+            }
+            cpu0_data.push(procdata);
+            for(var fd in container_cpu0[key]['fd']) {
+                for(var filename in container_cpu0[key]['fd'][fd]) {
+                    if(ios[filename] === undefined) {
+                        ios[filename] = container_cpu0[key]['fd'][fd][filename];
+                    }
+                    else {
+                        ios[filename] += container_cpu0[key]['fd'][fd][filename];
+                    }
+                }
+            }
+        }
+        // console.log(cpu0_data);
+        return {'data': cpu0_data, 'procs': cpu_processes, 'ios': ios}
+    }
+
+    function get_cpu_all(data){
+        var cpu_data = [];
+        var procs = [];
+        var groups = [];
+        for(var key in data){
+            procs.push(key);
+            /*
+            metric = [];
+            for(var i=0;i<data[key].length;i++){
+                    metric.push({
+                        "date": new Date((data[key][i]['ts']*1000)),
+                        "value": data[key][i]['duration'] * 100 / (1000000000)
+                    });
+            }
+            */
+            groups.push({'id': key, "content": key})
+            for(var i=0;i<data[key].length;i++){
+                metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['duration'] * 100 / (1000000000), 'group': key}
+                cpu_data.push(metric);
+            }
+        }
+        return {'data': cpu_data, 'groups': groups, 'procs': procs};
+    }
+
+    function get_mem(data){
+        var mem_data = [];
+        var procs = [];
+        var groups = [];
+        for(var key in data){
+            procs.push(key);
+            groups.push({'id': key, "content": key})
+            for(var i=0;i<data[key].length;i++){
+                metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['vm_size']/1000000, 'group': key}
+                mem_data.push(metric);
+            }
+        }
+        return {'data': mem_data, 'groups': groups, 'procs': procs};
+    }
+
+    function get_procs(data){
+        var result = {'nodes': [], 'edges': []}
+        for(var i=0;i<data.length;i++){
+            var dataelt = data[i];
+            procs[dataelt['id']] = dataelt['name'];
+            result['nodes'].push({'id': dataelt['id'], 'label': dataelt['name']+"("+dataelt['id']+")"});
+            if(dataelt['parent']){
+                result['edges'].push({'from': dataelt['parent'], 'to': dataelt['id']})
+            }
+        }
+        console.log(result);
+        return result;
+    }
+
+    d3.json('/container/test/io', function(data) {
+        var io_list = "";
+        for(var key in data){
+            for(var i=0;i<data[key].length;i++){
+                var elt = data[key][i];
+                io_list += "<tr><td>" + elt["proc_id"] + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>";
+            }
+        }
+        $("#io_all_list").append(io_list);
+
+    });
+
+    d3.json('/container/test/proc', function(data) {
+        var procs = get_procs(data['data']);
+        var container = document.getElementById('procs_relationship');
+        var nodes = new vis.DataSet(procs.nodes);
+        var edges = new vis.DataSet(procs.edges);
+        var netdata = {
+          nodes: nodes,
+          edges: edges
+        };
+        var options = {};
+        var network = new vis.Network(container, netdata, options);
+
+    });
+
+    d3.json('/container/test/cpu', function(data) {
+        //cpu0 = get_cpu_data(data, '0');
+        cpu0 = get_cpu_all(data);
+        console.log(cpu0);
+        /*
+        MG.data_graphic({
+            title: "CPU usage",
+            description: "container cpu usage",
+            data: cpu0.data,
+            right: 40,
+            target: '#mychart_cpu0',
+            legend: cpu0.procs,
+            legend_target: '#legend0',
+            area: true,
+            missnig_is_zero: true,
+            width: 600,
+        });
+        */
+        var container = document.getElementById('mychart_cpu0');
+        var dataset = new vis.DataSet(cpu0.data);
+        var options = {
+            style: 'bar',
+            stack: true,
+            drawPoints: false,
+            legend: true,
+            width: '800px',
+        };
+        var graph2d = new vis.Graph2d(container, dataset, cpu0.groups, options);
+
+
+        /*
+        cpu2 = get_cpu_data(data, '2');
+
+        MG.data_graphic({
+            title: "CPU 2 usage",
+            description: "container cpu usage",
+            data: cpu2.data,
+            right: 40,
+            target: '#mychart_cpu2',
+            legend: cpu2.procs,
+            legend_target: '#legend2'
+        });
+
+        cpu3 = get_cpu_data(data, '3');
+
+        MG.data_graphic({
+            title: "CPU 3 usage",
+            description: "container cpu usage",
+            data: cpu3.data,
+            right: 40,
+            target: '#mychart_cpu3',
+            legend: cpu3.procs,
+            legend_target: '#legend3',
+        });
+
+        memory = get_memory_data(data);
+        console.log(memory);
+        MG.data_graphic({
+            title: "Memory usage",
+            description: "container memory usage",
+            data: memory.data,
+            right: 40,
+            target: '#mychart_memory',
+            legend: memory.procs,
+            legend_target: '#legendmemory',
+        });
+
+        ios_list = "";
+        for(var filename in cpu2.ios) {
+            ios_list += "<tr><td>" + filename + "</td><td>" + cpu2.ios[filename] + "</td></tr>";
+        }
+        $("#io").append(ios_list);
+        */
+    });
+
+    d3.json('/container/test/mem', function(data) {
+        //cpu0 = get_cpu_data(data, '0');
+        var mem = get_mem(data);
+
+        var container = document.getElementById('mychart_mem');
+        var dataset = new vis.DataSet(mem.data);
+        var options = {
+            style: 'bar',
+            stack: true,
+            drawPoints: false,
+            legend: true,
+            width: '800px',
+            dataAxis: {
+                left: {
+                    title: {text: 'Mb'}
+                }
+
+            }
+        };
+        var graph2d = new vis.Graph2d(container, dataset, mem.groups, options);
+
+    });
+    </script>
+</body>
+</html>

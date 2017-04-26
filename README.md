@@ -80,6 +80,9 @@ replace from/to/nbcpu with known values from job
                 WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
 
             USE sysdig;
-            CREATE TABLE io (io_in counter, io_out counter, ts timestamp, proc_name varchar, file_name varchar, PRIMARY KEY (ts, proc_name, file_name));
-            CREATE TABLE mem (vm_size counter, vm_rss counter, vm_swap counter, ts timestamp, proc_name varchar, PRIMARY KEY (ts, proc_name));
-            CREATE TABLE cpu (duration counter, cpu int, ts timestamp, proc_name varchar, PRIMARY KEY (ts, proc_name, cpu));
+            CREATE TABLE io (io_in counter, io_out counter, ts timestamp, proc_name varchar, file_name varchar, PRIMARY KEY (proc_name, ts, file_name));
+            CREATE TABLE io_all (io_in counter, io_out counter, proc_name varchar, file_name varchar, PRIMARY KEY (proc_name, file_name));
+            CREATE TABLE mem (vm_size counter, vm_rss counter, vm_swap counter, ts timestamp, proc_name varchar, PRIMARY KEY (proc_name, ts));
+            CREATE TABLE cpu (duration counter, cpu int, ts timestamp, proc_name varchar, PRIMARY KEY (cpu, ts, proc_name));
+            CREATE TABLE cpu_all (duration counter, ts timestamp, proc_name varchar, PRIMARY KEY (proc_name, ts));
+            CREATE TABLE proc(proc_name varchar, exe varchar, args varchar, proc_id int, parent_id int, PRIMARY_KEY(proc_id, proc_name))
