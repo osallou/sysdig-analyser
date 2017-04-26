@@ -187,6 +187,8 @@ def sysdig_event(event):
             'container_id': event['container.id']
         }
 
+    if event['thread.vtid'] == 1 and 1 not in containers[event['container.name']]['hierarchy']:
+        containers[event['container.name']]['hierarchy'][1] = None
     if event['evt.type'] == 'clone':
         child = __clone_info(event['evt.info'])
         parent = event['thread.vtid']
@@ -250,7 +252,7 @@ def sysdig_event(event):
                 'vm_size': vm_size,
                 'vm_rss': vm_rss,
                 'vm_swap': vm_swap,
-                'proc': event['proc.name']
+                'proc':  utid
             })
             '''
             if event['thread.vtid'] not in containers[event['container.name']]['memory']:
@@ -661,3 +663,6 @@ logging.info(json.dumps(analyse, default=json_util.default))
 
 with open('output.json', 'w') as out:
     json.dump(analyse, out, default=json_util.default)
+
+
+logging.info(json.dumps(containers, default=json_util.default))

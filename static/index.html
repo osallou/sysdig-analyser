@@ -49,7 +49,7 @@
     <script>
 
     var nb_cpus = 3;
-    var procs = {};
+    var proc_list = {};
 
 
     function get_memory_data(data){
@@ -134,7 +134,7 @@
         var groups = [];
         for(var key in data){
             procs.push(key);
-            groups.push({'id': key, "content": key})
+            groups.push({'id': key, "content": proc_list[key]+"("+key+")"})
             for(var i=0;i<data[key].length;i++){
                 metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['vm_size']/1000000, 'group': key}
                 mem_data.push(metric);
@@ -147,27 +147,131 @@
         var result = {'nodes': [], 'edges': []}
         for(var i=0;i<data.length;i++){
             var dataelt = data[i];
-            procs[dataelt['id']] = dataelt['name'];
+            proc_list[dataelt['id']] = dataelt['name'];
             result['nodes'].push({'id': dataelt['id'], 'label': dataelt['name']+"("+dataelt['id']+")"});
             if(dataelt['parent']){
-                result['edges'].push({'from': dataelt['parent'], 'to': dataelt['id']})
+                result['edges'].push({'from': dataelt['parent'], 'to': dataelt['id'], arrows:'to'})
             }
         }
-        console.log(result);
         return result;
     }
 
-    d3.json('/container/test/io', function(data) {
-        var io_list = "";
-        for(var key in data){
-            for(var i=0;i<data[key].length;i++){
-                var elt = data[key][i];
-                io_list += "<tr><td>" + elt["proc_id"] + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>";
+    function load_io(){
+        d3.json('/container/test/io', function(data) {
+            var io_list = "";
+            for(var key in data){
+                for(var i=0;i<data[key].length;i++){
+                    var elt = data[key][i];
+                    io_list += "<tr><td>" + elt["proc_id"] + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>";
+                }
             }
-        }
-        $("#io_all_list").append(io_list);
+            $("#io_all_list").append(io_list);
 
-    });
+        });
+    }
+
+    function load_cpu(){
+        d3.json('/container/test/cpu', function(data) {
+            //cpu0 = get_cpu_data(data, '0');
+            cpu0 = get_cpu_all(data);
+            console.log(cpu0);
+            /*
+            MG.data_graphic({
+                title: "CPU usage",
+                description: "container cpu usage",
+                data: cpu0.data,
+                right: 40,
+                target: '#mychart_cpu0',
+                legend: cpu0.procs,
+                legend_target: '#legend0',
+                area: true,
+                missnig_is_zero: true,
+                width: 600,
+            });
+            */
+            var container = document.getElementById('mychart_cpu0');
+            var dataset = new vis.DataSet(cpu0.data);
+            var options = {
+                style: 'bar',
+                stack: true,
+                drawPoints: false,
+                legend: true,
+                width: '800px',
+            };
+            var graph2d = new vis.Graph2d(container, dataset, cpu0.groups, options);
+
+
+            /*
+            cpu2 = get_cpu_data(data, '2');
+
+            MG.data_graphic({
+                title: "CPU 2 usage",
+                description: "container cpu usage",
+                data: cpu2.data,
+                right: 40,
+                target: '#mychart_cpu2',
+                legend: cpu2.procs,
+                legend_target: '#legend2'
+            });
+
+            cpu3 = get_cpu_data(data, '3');
+
+            MG.data_graphic({
+                title: "CPU 3 usage",
+                description: "container cpu usage",
+                data: cpu3.data,
+                right: 40,
+                target: '#mychart_cpu3',
+                legend: cpu3.procs,
+                legend_target: '#legend3',
+            });
+
+            memory = get_memory_data(data);
+            console.log(memory);
+            MG.data_graphic({
+                title: "Memory usage",
+                description: "container memory usage",
+                data: memory.data,
+                right: 40,
+                target: '#mychart_memory',
+                legend: memory.procs,
+                legend_target: '#legendmemory',
+            });
+
+            ios_list = "";
+            for(var filename in cpu2.ios) {
+                ios_list += "<tr><td>" + filename + "</td><td>" + cpu2.ios[filename] + "</td></tr>";
+            }
+            $("#io").append(ios_list);
+            */
+        });
+    }
+
+    function load_mem(){
+        d3.json('/container/test/mem', function(data) {
+            //cpu0 = get_cpu_data(data, '0');
+            var mem = get_mem(data);
+
+            var container = document.getElementById('mychart_mem');
+            var dataset = new vis.DataSet(mem.data);
+            var options = {
+                style: 'bar',
+                stack: true,
+                drawPoints: false,
+                legend: true,
+                width: '800px',
+                dataAxis: {
+                    left: {
+                        title: {text: 'Mb'}
+                    }
+
+                }
+            };
+            var graph2d = new vis.Graph2d(container, dataset, mem.groups, options);
+
+        });
+    }
+
 
     d3.json('/container/test/proc', function(data) {
         var procs = get_procs(data['data']);
@@ -181,105 +285,14 @@
         var options = {};
         var network = new vis.Network(container, netdata, options);
 
-    });
 
-    d3.json('/container/test/cpu', function(data) {
-        //cpu0 = get_cpu_data(data, '0');
-        cpu0 = get_cpu_all(data);
-        console.log(cpu0);
-        /*
-        MG.data_graphic({
-            title: "CPU usage",
-            description: "container cpu usage",
-            data: cpu0.data,
-            right: 40,
-            target: '#mychart_cpu0',
-            legend: cpu0.procs,
-            legend_target: '#legend0',
-            area: true,
-            missnig_is_zero: true,
-            width: 600,
-        });
-        */
-        var container = document.getElementById('mychart_cpu0');
-        var dataset = new vis.DataSet(cpu0.data);
-        var options = {
-            style: 'bar',
-            stack: true,
-            drawPoints: false,
-            legend: true,
-            width: '800px',
-        };
-        var graph2d = new vis.Graph2d(container, dataset, cpu0.groups, options);
-
-
-        /*
-        cpu2 = get_cpu_data(data, '2');
-
-        MG.data_graphic({
-            title: "CPU 2 usage",
-            description: "container cpu usage",
-            data: cpu2.data,
-            right: 40,
-            target: '#mychart_cpu2',
-            legend: cpu2.procs,
-            legend_target: '#legend2'
-        });
-
-        cpu3 = get_cpu_data(data, '3');
-
-        MG.data_graphic({
-            title: "CPU 3 usage",
-            description: "container cpu usage",
-            data: cpu3.data,
-            right: 40,
-            target: '#mychart_cpu3',
-            legend: cpu3.procs,
-            legend_target: '#legend3',
-        });
-
-        memory = get_memory_data(data);
-        console.log(memory);
-        MG.data_graphic({
-            title: "Memory usage",
-            description: "container memory usage",
-            data: memory.data,
-            right: 40,
-            target: '#mychart_memory',
-            legend: memory.procs,
-            legend_target: '#legendmemory',
-        });
-
-        ios_list = "";
-        for(var filename in cpu2.ios) {
-            ios_list += "<tr><td>" + filename + "</td><td>" + cpu2.ios[filename] + "</td></tr>";
-        }
-        $("#io").append(ios_list);
-        */
-    });
-
-    d3.json('/container/test/mem', function(data) {
-        //cpu0 = get_cpu_data(data, '0');
-        var mem = get_mem(data);
-
-        var container = document.getElementById('mychart_mem');
-        var dataset = new vis.DataSet(mem.data);
-        var options = {
-            style: 'bar',
-            stack: true,
-            drawPoints: false,
-            legend: true,
-            width: '800px',
-            dataAxis: {
-                left: {
-                    title: {text: 'Mb'}
-                }
-
-            }
-        };
-        var graph2d = new vis.Graph2d(container, dataset, mem.groups, options);
+        load_io();
+        load_cpu();
+        load_mem();
 
     });
+
+
     </script>
 </body>
 </html>
