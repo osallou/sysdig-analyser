@@ -80,9 +80,10 @@ replace from/to/nbcpu with known values from job
                 WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
 
             USE sysdig;
-            CREATE TABLE io (io_in counter, io_out counter, ts timestamp, proc_name varchar, file_name varchar, PRIMARY KEY (proc_name, ts, file_name));
-            CREATE TABLE io_all (io_in counter, io_out counter, proc_name varchar, file_name varchar, PRIMARY KEY (proc_name, file_name));
-            CREATE TABLE mem (vm_size counter, vm_rss counter, vm_swap counter, ts timestamp, proc_name varchar, PRIMARY KEY (proc_name, ts));
-            CREATE TABLE cpu (duration counter, cpu int, ts timestamp, proc_name varchar, PRIMARY KEY (cpu, ts, proc_name));
-            CREATE TABLE cpu_all (duration counter, ts timestamp, proc_name varchar, PRIMARY KEY (proc_name, ts));
-            CREATE TABLE proc(proc_name varchar, exe varchar, args varchar, proc_id int, parent_id int, PRIMARY_KEY(proc_id, proc_name))
+            CREATE TABLE io (container varchar, io_in counter, io_out counter, ts timestamp, proc_name varchar, file_name varchar, PRIMARY KEY (container, proc_name, ts, file_name));
+            CREATE TABLE io_all (container varchar, io_in counter, io_out counter, proc_name varchar, file_name varchar, PRIMARY KEY (container, proc_name, file_name));
+            CREATE TABLE mem (container varchar,vm_size bigint, vm_rss bigint, vm_swap bigint, ts timestamp, proc_name varchar, PRIMARY KEY (container, proc_name, ts));
+            CREATE TABLE cpu (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, cpu, proc_id, ts));
+            CREATE TABLE cpu_all (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
+            CREATE TABLE proc (container varchar, start timestamp, end timestamp, proc_name varchar, exe varchar, args varchar, proc_id int, parent_id int, PRIMARY KEY (container, proc_id));
+            CREATE TABLE proc_cpu (container varchar, cpu counter, proc_id int, PRIMARY KEY (container, proc_id));

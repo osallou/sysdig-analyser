@@ -119,7 +119,7 @@
                     });
             }
             */
-            groups.push({'id': key, "content": key})
+            groups.push({'id': key, "content": proc_list[key]+"("+key+")"})
             for(var i=0;i<data[key].length;i++){
                 metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['duration'] * 100 / (1000000000), 'group': key}
                 cpu_data.push(metric);
@@ -136,7 +136,7 @@
             procs.push(key);
             groups.push({'id': key, "content": proc_list[key]+"("+key+")"})
             for(var i=0;i<data[key].length;i++){
-                metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['vm_size']/1000000, 'group': key}
+                metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['vm_size']/1000, 'group': key}
                 mem_data.push(metric);
             }
         }
@@ -156,8 +156,8 @@
         return result;
     }
 
-    function load_io(){
-        d3.json('/container/test/io', function(data) {
+    function load_io(container){
+        d3.json('/container/'+container+'/io', function(data) {
             var io_list = "";
             for(var key in data){
                 for(var i=0;i<data[key].length;i++){
@@ -170,8 +170,8 @@
         });
     }
 
-    function load_cpu(){
-        d3.json('/container/test/cpu', function(data) {
+    function load_cpu(container){
+        d3.json('/container/'+container+'/cpu', function(data) {
             //cpu0 = get_cpu_data(data, '0');
             cpu0 = get_cpu_all(data);
             console.log(cpu0);
@@ -247,8 +247,8 @@
         });
     }
 
-    function load_mem(){
-        d3.json('/container/test/mem', function(data) {
+    function load_mem(container){
+        d3.json('/container/'+container+'/mem', function(data) {
             //cpu0 = get_cpu_data(data, '0');
             var mem = get_mem(data);
 
@@ -273,7 +273,9 @@
     }
 
 
-    d3.json('/container/test/proc', function(data) {
+    var container_id = "262b281ffa9d";
+
+    d3.json('/container/'+container_id+'/proc', function(data) {
         var procs = get_procs(data['data']);
         var container = document.getElementById('procs_relationship');
         var nodes = new vis.DataSet(procs.nodes);
@@ -286,9 +288,9 @@
         var network = new vis.Network(container, netdata, options);
 
 
-        load_io();
-        load_cpu();
-        load_mem();
+        load_io(container_id);
+        load_cpu(container_id);
+        load_mem(container_id);
 
     });
 
