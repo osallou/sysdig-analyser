@@ -9,57 +9,110 @@
     <link href="bower_components/vis/dist/vis.min.css" type="text/css" rel="stylesheet"/>
 </head>
 <body>
-    <div class="well">Sysdig test analysis</div>
-
-    <div class="row">
-        <div class="col-md-6">
-            <h2>CPU</h2>
-            <div class="row">
-                <div id="mychart_cpu0"></div>
-            </div>
+    <nav class="navbar navbar-default">
+      <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">Sysdig test analysis</a>
         </div>
-        <div class="col-md-6">
-            <h2>CPU details</h2>
-            <div class="row">
-                <select id="cpu_proc">
-                </select>
-                <button class="btn btn-primary" id="cpu_proc_show">show</button>
-            </div>
-            <div class="row">
-                <div id="mychart_cpu_details"></div>
+
+        <!-- Collect the nav links, forms, and other content for toggling -->
+        <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+          <ul class="nav navbar-nav">
+            <li><a href="#cpu_tab">CPU</a></li>
+            <li><a href="#memory_tab">Memory</a></li>
+            <li><a href="#proc_tab">Processes</a></li>
+            <li><a href="#io_tab">IO</a></li>
+
+          </ul>
+
+        </div><!-- /.navbar-collapse -->
+      </div><!-- /.container-fluid -->
+    </nav>
+
+    <div class="row" id="cpu_tab">
+        <div class="panel panel-primary">
+            <div class="panel-heading">CPU</div>
+            <div class="panel-body">
+                <div class="col-md-6">
+                    <div class="row">
+                        <div id="mychart_cpu0"></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-2">
+                        <span>Details </span>
+                        </div>
+                        <div class="col-md-4">
+                            <form class="form form-inline">
+                                <div class="form-group">
+                                    <select class="form-control" id="cpu_proc">
+                                    </select>
+                                    <button type="button" class="btn btn-primary" id="cpu_proc_show">show</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div id="mychart_cpu_details"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
 
-    <div class="row">
-        <div class="col-md-6">
-            <h2>Memory</h2>
-            <div class="row">
-                <div id="mychart_mem"></div>
+    <div class="row" id="memory_tab">
+        <div class="panel panel-primary">
+            <div class="panel-heading">Memory</div>
+            <div class="panel-body">
+                    <div class="row">
+                        <div id="mychart_mem"></div>
+                    </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <h2>Processes</h2>
-            <div id="procs_relationship">
+    </div>
+
+    <div class="row" id="proc_tab">
+        <div class="panel panel-primary">
+            <div class="panel-heading">Processes</div>
+            <div class="panel-body">
+                    <div id="procs_relationship">
+                    </div>
+                    <table class="table table-condensed table-striped table-bordered">
+                        <thead>
+                            <th>Process id</th><th>Exe</th><th>Args</th>
+                        </thead>
+                        <tbody id="proc_info">
+                        </tbody>
+                    </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row" id="io_tab">
+        <div class="panel panel-primary">
+            <div class="panel-heading">IO</div>
+            <div class="panel-body">
+                <table id="io" class="table table-condensed table-striped table-bordered">
+                    <thead>
+                        <th>Process id</th><th>File name</th><th>Bytes in</th><th>Bytes out</th>
+                    </thead>
+                    <tbody id="io_all_list">
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
 
-
-    <div class="row">
-        <div class="col-md-6">
-            <h2>File access</h2>
-            <table id="io" class="table-condensed table-striped table-bordered">
-                <thead>
-                    <th>Process id</th><th>File name</th><th>Bytes in</th><th>Bytes out</th>
-                </thead>
-                <tbody id="io_all_list">
-                </tbody>
-            </table>
-        </div>
-    </div>
     <script>
 
     var nb_cpus = 3;
@@ -140,17 +193,20 @@
 
     function get_procs(data){
         var proc_selection = "";
+        var proc_info = "";
         var result = {'nodes': [], 'edges': []}
         for(var i=0;i<data.length;i++){
             var dataelt = data[i];
             proc_list[dataelt['id']] = dataelt['name'];
             proc_selection += "<option value=\"" + dataelt['id'] + "\">" + dataelt['name'] + "("+dataelt['id']+")" + "</option>";
+            proc_info += "<tr><td>" + dataelt['id']+ "</td><td>" + dataelt['exe'] + "</td><td>" + dataelt['args'] + "</td></tr>";
             result['nodes'].push({'id': dataelt['id'], 'label': dataelt['name']+"("+dataelt['id']+")"});
             if(dataelt['parent']){
                 result['edges'].push({'from': dataelt['parent'], 'to': dataelt['id'], arrows:'to'})
             }
         }
         $("#cpu_proc").append(proc_selection);
+        $("#proc_info").append(proc_info);
         return result;
     }
 
