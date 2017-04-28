@@ -10,44 +10,47 @@
 </head>
 <body>
     <div class="well">Sysdig test analysis</div>
-    <h2>CPU</h2>
+
     <div class="row">
-        <div class="col-md-4">
+        <div class="col-md-6">
+            <h2>CPU</h2>
             <div class="row">
                 <div id="mychart_cpu0"></div>
             </div>
         </div>
-        </div>
-    </div>
-
-    <h2>CPU details</h2>
-    <div class="row">
-        <div class="col-md-4">
+        <div class="col-md-6">
+            <h2>CPU details</h2>
+            <div class="row">
+                <select id="cpu_proc">
+                </select>
+                <button class="btn btn-primary" id="cpu_proc_show">show</button>
+            </div>
             <div class="row">
                 <div id="mychart_cpu_details"></div>
             </div>
-        </div>
-        </div>
-    </div>
-
-    <h2>Memory</h2>
-    <div class="row">
-        <div class="col-md-4">
-            <div class="row">
-                <div id="mychart_mem"></div>
-            </div>
-        </div>
-    </div>
-
-    <h2>Processes</h2>
-    <div class="row">
-        <div id="procs_relationship">
         </div>
     </div>
 
 
     <div class="row">
         <div class="col-md-6">
+            <h2>Memory</h2>
+            <div class="row">
+                <div id="mychart_mem"></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <h2>Processes</h2>
+            <div id="procs_relationship">
+            </div>
+        </div>
+    </div>
+
+
+
+    <div class="row">
+        <div class="col-md-6">
+            <h2>File access</h2>
             <table id="io" class="table-condensed table-striped table-bordered">
                 <thead>
                     <th>Process id</th><th>File name</th><th>Bytes in</th><th>Bytes out</th>
@@ -86,8 +89,6 @@
     }
 
     function get_per_cpu(data, proc_id){
-        console.log('get_per_cpu');
-        console.log(data);
         var cpu_data = [];
         var procs = [];
         var groups = [];
@@ -138,15 +139,18 @@
     }
 
     function get_procs(data){
+        var proc_selection = "";
         var result = {'nodes': [], 'edges': []}
         for(var i=0;i<data.length;i++){
             var dataelt = data[i];
             proc_list[dataelt['id']] = dataelt['name'];
+            proc_selection += "<option value=\"" + dataelt['id'] + "\">" + dataelt['name'] + "("+dataelt['id']+")" + "</option>";
             result['nodes'].push({'id': dataelt['id'], 'label': dataelt['name']+"("+dataelt['id']+")"});
             if(dataelt['parent']){
                 result['edges'].push({'from': dataelt['parent'], 'to': dataelt['id'], arrows:'to'})
             }
         }
+        $("#cpu_proc").append(proc_selection);
         return result;
     }
 
@@ -156,7 +160,7 @@
             for(var key in data){
                 for(var i=0;i<data[key].length;i++){
                     var elt = data[key][i];
-                    io_list += "<tr><td>" + elt["proc_id"] + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>";
+                    io_list += "<tr><td>" + proc_list[elt["proc_id"]] + "(" + elt["proc_id"] +")" + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>";
                 }
             }
             $("#io_all_list").append(io_list);
@@ -167,9 +171,10 @@
 
     function load_per_cpu(container, proc_id){
         d3.json('/container/'+container+'/cpu/' + proc_id, function(data) {
+            $("#mychart_cpu_details").html("");
             //cpu0 = get_cpu_data(data, '0');
             cpu_data = get_per_cpu(data, proc_id);
-            console.log(cpu0);
+            // console.log(cpu0);
 
             var container = document.getElementById('mychart_cpu_details');
             var dataset = new vis.DataSet(cpu_data.data);
@@ -178,7 +183,7 @@
                 stack: true,
                 drawPoints: false,
                 legend: true,
-                width: '800px',
+                //width: '800px',
             };
             var graph2d = new vis.Graph2d(container, dataset, cpu_data.groups, options);
         });
@@ -189,21 +194,7 @@
         d3.json('/container/'+container+'/cpu', function(data) {
             //cpu0 = get_cpu_data(data, '0');
             cpu0 = get_cpu_all(data);
-            console.log(cpu0);
-            /*
-            MG.data_graphic({
-                title: "CPU usage",
-                description: "container cpu usage",
-                data: cpu0.data,
-                right: 40,
-                target: '#mychart_cpu0',
-                legend: cpu0.procs,
-                legend_target: '#legend0',
-                area: true,
-                missnig_is_zero: true,
-                width: 600,
-            });
-            */
+
             var container = document.getElementById('mychart_cpu0');
             var dataset = new vis.DataSet(cpu0.data);
             var options = {
@@ -211,7 +202,7 @@
                 stack: true,
                 drawPoints: false,
                 legend: true,
-                width: '800px',
+                //width: '800px',
             };
             var graph2d = new vis.Graph2d(container, dataset, cpu0.groups, options);
         });
@@ -229,7 +220,7 @@
                 stack: true,
                 drawPoints: false,
                 legend: true,
-                width: '800px',
+                //width: '800px',
                 dataAxis: {
                     left: {
                         title: {text: 'Mb'}
@@ -242,30 +233,44 @@
         });
     }
 
+    function load_proc(container_id){
+        d3.json('/container/'+container_id+'/proc', function(data) {
+            var procs = get_procs(data['data']);
+            var container = document.getElementById('procs_relationship');
+            var nodes = new vis.DataSet(procs.nodes);
+            var edges = new vis.DataSet(procs.edges);
+            var netdata = {
+              nodes: nodes,
+              edges: edges
+            };
+            var options = {
+                'height': '400px'
+            };
+            var network = new vis.Network(container, netdata, options);
 
-    var container_id = "262b281ffa9d";
-    var proc_id = "3108";
+            load_io(container_id);
+            load_cpu(container_id);
+            load_mem(container_id);
 
-    d3.json('/container/'+container_id+'/proc', function(data) {
-        var procs = get_procs(data['data']);
-        var container = document.getElementById('procs_relationship');
-        var nodes = new vis.DataSet(procs.nodes);
-        var edges = new vis.DataSet(procs.edges);
-        var netdata = {
-          nodes: nodes,
-          edges: edges
-        };
-        var options = {};
-        var network = new vis.Network(container, netdata, options);
+        });
+    }
 
-
-        load_io(container_id);
-        load_cpu(container_id);
-        load_mem(container_id);
-        load_per_cpu(container_id, proc_id);
-
+    $("#cpu_proc_show").click(function(){
+        load_per_cpu($.urlParam('container'), $("#cpu_proc").val());
     });
 
+
+
+    $.urlParam = function (name) {
+    var results = new RegExp('[\?&]' + name + '=([^&#]*)')
+                      .exec(window.location.href);
+
+    return results[1] || 0;
+}
+
+    $(document).ready(function(){
+        load_proc($.urlParam('container'));
+    });
 
     </script>
 </body>

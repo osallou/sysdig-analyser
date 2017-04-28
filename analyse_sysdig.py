@@ -172,9 +172,10 @@ def __fd_info(evt_info):
 
 def __io_info(evt_info):
     fd = __vm_re('fd=(\d+)', evt_info)
-    length =  __vm_re('length=(\d+)', evt_info)
-    if not length:
-        length =  __vm_re('size=(\d+)', evt_info)
+    length =  __vm_re('size=(\d+)', evt_info)
+    #length =  __vm_re('length=(\d+)', evt_info)
+    #if not length:
+    #    length =  __vm_re('size=(\d+)', evt_info)
     if fd and length:
         return (fd, length)
     else:
@@ -750,11 +751,6 @@ for event in events:
     sysdig_event(event)
 
 close_sysdig_events(containers)
-
-logging.info(json.dumps(containers['heuristic_saha']['cpus'][0]['3108']['usage'], default=json_util.default))
-logging.info(json.dumps(containers['heuristic_saha']['cpus'][1]['3108']['usage'], default=json_util.default))
-logging.info(json.dumps(containers['heuristic_saha']['cpus'][2]['3108']['usage'], default=json_util.default))
-logging.info(json.dumps(containers['heuristic_saha']['cpus'][3]['3108']['usage'], default=json_util.default))
 
 merged_containers = group_by_seconds(containers, 1)
 
