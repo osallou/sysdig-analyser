@@ -21,6 +21,7 @@ session = cluster.connect('sysdig')
 
 
 containers = {}
+last_call = {}
 
 
 def __cassandra_io(event):
@@ -194,8 +195,10 @@ def __exec_info(evt_info):
 def sysdig_event(event):
 
     if event['proc.name'] == 'sysdig':
+        last_call[event['evt.cpu']] = event['evt.outputtime']
         return
     if event['container.id'] in [None, 'host']:
+        last_call[event['evt.cpu']] = event['evt.outputtime']
         last_ts = event['evt.outputtime']
         return
     logging.debug(str(event))
@@ -228,9 +231,10 @@ def sysdig_event(event):
         if child > 0:
             containers[event['container.name']]['hierarchy'][child] = parent
             __cassandra_proc_start(event, child=child)
-            is_clone = True
-            logging.info("StartEvent:"+str(child)+':'+str(event['evt.num']))
-            containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+str(child)] = event['evt.outputtime']
+            # is_clone = True
+        #else:
+        #    logging.info("StartEvent:"+str(utid)+':'+str(event['evt.num']))
+        #    containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+str(utid)] = event['evt.outputtime']
             # containers[event['container.name']]['cpus'][event['evt.cpu']][child]['last_cpu'] = event['evt.outputtime']
 
 
@@ -243,7 +247,7 @@ def sysdig_event(event):
     if event['evt.type'] == 'execve':
         containers[event['container.name']]['procs'][utid]['start'] = event['evt.outputtime']
         __cassandra_proc_start(event)
-        containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+utid] = event['evt.outputtime']
+        #containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+utid] = event['evt.outputtime']
         # containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = event['evt.outputtime']
 
 
@@ -270,7 +274,7 @@ def sysdig_event(event):
                 'exe': exe,
                 'args': args
             }
-        logging.info("StartEvent:"+str(utid)+':'+str(event['evt.num']))
+        #logging.info("StartEvent:"+str(utid)+':'+str(event['evt.num']))
         containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
         containers[event['container.name']]['procs'][utid]['name'] = event['proc.name']
 
@@ -293,12 +297,15 @@ def sysdig_event(event):
                 pass
     '''
 
+    '''
     if (str(event['evt.cpu'])+'-'+utid) in containers[event['container.name']]['last_cpus']:
         containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+utid]
     else:
         containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = begin_ts
+    '''
 
-    if event['evt.type'] == 'switch' or event['evt.type'] == 'procexit':
+    if 1==0 and (event['evt.type'] == 'switch' or event['evt.type'] == 'procexit'):
+
         # intermediate switch, nothing occured meanwhile
         # if we have seen no other event for this cpu/proc before, then this is (may) be continuation from a previous record
         if str(event['evt.cpu'])+'-'+utid not in containers[event['container.name']]['last_cpus']:
@@ -412,19 +419,52 @@ def sysdig_event(event):
             else:
                 containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][name] += length
 
+        '''
         if str(event['evt.cpu'])+'-'+str(utid) not in containers[event['container.name']]['last_cpus']:
+            logging.info("StartEvent:"+str(utid)+':'+str(event['evt.num']))
             containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+str(utid)] = event['evt.outputtime']
-        if not containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+str(utid)] and not is_clone:
+        if not containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+str(utid)]:
+            logging.info("StartEvent:"+str(utid)+':'+str(event['evt.num']))
             containers[event['container.name']]['last_cpus'][str(event['evt.cpu'])+'-'+str(utid)] = event['evt.outputtime']
         '''
-        if not containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu']:
-            # startup of this thread
+        if 1 == 0 and not containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu']:
             containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = event['evt.outputtime']
+            return
         else:
-            # continue processing
-            pass
-        '''
+            if 1==1:
+                if event['evt.cpu'] in last_call:
+                    containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = last_call[event['evt.cpu']]
+                else:
+                    containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = begin_ts
+                    return
+            logging.info("StartEvent:"+str(utid)+':'+str(event['evt.num'])+':'+str(event['evt.cpu']))
+            (vm_size, vm_rss, vm_swap) = __vm_info(event['evt.info'])
+            containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['usage'].append({
+                'start': containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
+                'start_date': datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000),
+                'debug_date': str(datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000)),
+                'duration': event['evt.outputtime'] - containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
+                'memory': (vm_size, vm_rss, vm_swap)
+            })
+            logging.info(str({
+                'proc': utid,
+                'cpu': event['evt.cpu'],
+                'last_cpu': containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
+                'start': containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
+                'start_date': datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000),
+                'debug_date': str(datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000)),
+                'duration': event['evt.outputtime'] - containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
+                'memory': (vm_size, vm_rss, vm_swap)
+            }))
 
+            logging.info("StopEvent:"+str(utid)+':'+str(event['evt.num'])+':'+str(event['evt.cpu']))
+            if (event['evt.type'] == 'switch' or event['evt.type'] == 'procexit'):
+                containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = None
+                logging.info("ResetEvent:"+str(utid)+':'+str(event['evt.num'])+':'+str(event['evt.cpu']))
+            else:
+                containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = event['evt.outputtime']
+
+    last_call[event['evt.cpu']] = event['evt.outputtime']
     return
 
 def close_sysdig_event(name, container):
@@ -569,12 +609,14 @@ def group_by_seconds(sysdig_containers, merge=1):
                         splitted_usage['cpu'] = cpu
                         # splitted_usage['proc'] = tid
                         splitted_usage['proc_id'] = tid
+                        splitted_usage['container'] = container['container_id']
                         splitted_usage['proc'] =  container['procs'][tid]['name']+'(' + tid + ')'
                         # __cassandra_cpu(splitted_usage)
                         splitted_usage['total'] = merge * 1000000000
                         logging.debug("Start: " + str(splitted_usage['start_date']) + " vs " + str(current_ts))
                         logging.debug("Next: " + str(splitted_usage['start_date']) + " vs " + str(next_ts))
                         logging.debug(str(splitted_usage))
+                        '''
                         if splitted_usage['start_date'] >= next_ts and prev_usage:
                             logging.debug("add prev usage")
                             thread['usage'].append(prev_usage)
@@ -582,10 +624,12 @@ def group_by_seconds(sysdig_containers, merge=1):
                             __cassandra_cpu(prev_usage)
                             __cassandra_cpu_all(prev_usage)
                             prev_usage = None
+                        '''
                         while splitted_usage['start_date'] >= next_ts:
                             current_ts += datetime.timedelta(seconds=merge)
                             next_ts = current_ts + datetime.timedelta(seconds=merge)
                         if splitted_usage['start_date'] >= current_ts and splitted_usage['start_date'] < next_ts:
+                            '''
                             # concat events
                             if prev_usage:
                                 logging.debug("concat with previous event")
@@ -596,8 +640,11 @@ def group_by_seconds(sysdig_containers, merge=1):
                                     prev_memory = splitted_usage['memory']
                                     max_memory = splitted_usage['memory'][0]
                             prev_usage = splitted_usage
+                            '''
+                            __cassandra_cpu(splitted_usage)
+                            __cassandra_cpu_all(splitted_usage)
 
-                if prev_usage:
+                if 1==0 and prev_usage:
                     logging.debug("Remaining, add prev_usage")
                     logging.debug(prev_usage)
                     thread['usage'].append(prev_usage)
@@ -704,8 +751,10 @@ for event in events:
 
 close_sysdig_events(containers)
 
-logging.info(json.dumps(containers, default=json_util.default))
-
+logging.info(json.dumps(containers['heuristic_saha']['cpus'][0]['3108']['usage'], default=json_util.default))
+logging.info(json.dumps(containers['heuristic_saha']['cpus'][1]['3108']['usage'], default=json_util.default))
+logging.info(json.dumps(containers['heuristic_saha']['cpus'][2]['3108']['usage'], default=json_util.default))
+logging.info(json.dumps(containers['heuristic_saha']['cpus'][3]['3108']['usage'], default=json_util.default))
 
 merged_containers = group_by_seconds(containers, 1)
 
@@ -728,6 +777,7 @@ for name, container in containers.iteritems():
 
 
 # insert_influxdb(merged_containers)
+'''
 analyse = {
     'merge': 1,
     'containers': merged_containers,
@@ -740,3 +790,4 @@ logging.info(json.dumps(analyse, default=json_util.default))
 
 with open('output.json', 'w') as out:
     json.dump(analyse, out, default=json_util.default)
+'''

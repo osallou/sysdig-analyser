@@ -19,6 +19,17 @@
         </div>
         </div>
     </div>
+
+    <h2>CPU details</h2>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="row">
+                <div id="mychart_cpu_details"></div>
+            </div>
+        </div>
+        </div>
+    </div>
+
     <h2>Memory</h2>
     <div class="row">
         <div class="col-md-4">
@@ -74,35 +85,26 @@
         return {'data': memory_data, 'procs': memory_processes}
     }
 
-    function get_cpu_data(data, cpu){
-        var container_cpu0 = data.containers.competent_thompson.cpus[cpu];
-        var cpu_processes = [];
-        var cpu0_data = [];
-        var ios = {}
-        for(var key in container_cpu0){
-            cpu_processes.push(container_cpu0[key]['proc_name']);
-            var procdata = [];
-            for(var i=0;i<container_cpu0[key]['usage'].length;i++){
-                    procdata.push({
-                        "date": new Date((container_cpu0[key]['usage'][i]['start'] / 1000000)),
-                        "value": container_cpu0[key]['usage'][i]['duration'] * 100 / (data.merge * 1000000000)
-                    });
+    function get_per_cpu(data, proc_id){
+        console.log('get_per_cpu');
+        console.log(data);
+        var cpu_data = [];
+        var procs = [];
+        var groups = [];
+        var cpu_list = [];
+        for(var i=0;i<data[proc_id].length;i++){
+            procs.push(proc_id);
+            if(cpu_list.indexOf(data[proc_id][i]['cpu'])==-1) {
+                groups.push({'id': data[proc_id][i]['cpu'], "content": "cpu" + data[proc_id][i]['cpu']})
+                cpu_list.push(data[proc_id][i]['cpu']);
             }
-            cpu0_data.push(procdata);
-            for(var fd in container_cpu0[key]['fd']) {
-                for(var filename in container_cpu0[key]['fd'][fd]) {
-                    if(ios[filename] === undefined) {
-                        ios[filename] = container_cpu0[key]['fd'][fd][filename];
-                    }
-                    else {
-                        ios[filename] += container_cpu0[key]['fd'][fd][filename];
-                    }
-                }
-            }
+            metric = {'x': new Date((data[proc_id][i]['ts']*1000)), 'y': data[proc_id][i]['duration'] * 100 / (1000000000), 'group': data[proc_id][i]['cpu']}
+            cpu_data.push(metric);
+
         }
-        // console.log(cpu0_data);
-        return {'data': cpu0_data, 'procs': cpu_processes, 'ios': ios}
+        return {'data': cpu_data, 'groups': groups, 'procs': procs};
     }
+
 
     function get_cpu_all(data){
         var cpu_data = [];
@@ -110,15 +112,7 @@
         var groups = [];
         for(var key in data){
             procs.push(key);
-            /*
-            metric = [];
-            for(var i=0;i<data[key].length;i++){
-                    metric.push({
-                        "date": new Date((data[key][i]['ts']*1000)),
-                        "value": data[key][i]['duration'] * 100 / (1000000000)
-                    });
-            }
-            */
+
             groups.push({'id': key, "content": proc_list[key]+"("+key+")"})
             for(var i=0;i<data[key].length;i++){
                 metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['duration'] * 100 / (1000000000), 'group': key}
@@ -170,6 +164,27 @@
         });
     }
 
+
+    function load_per_cpu(container, proc_id){
+        d3.json('/container/'+container+'/cpu/' + proc_id, function(data) {
+            //cpu0 = get_cpu_data(data, '0');
+            cpu_data = get_per_cpu(data, proc_id);
+            console.log(cpu0);
+
+            var container = document.getElementById('mychart_cpu_details');
+            var dataset = new vis.DataSet(cpu_data.data);
+            var options = {
+                style: 'bar',
+                stack: true,
+                drawPoints: false,
+                legend: true,
+                width: '800px',
+            };
+            var graph2d = new vis.Graph2d(container, dataset, cpu_data.groups, options);
+        });
+    }
+
+
     function load_cpu(container){
         d3.json('/container/'+container+'/cpu', function(data) {
             //cpu0 = get_cpu_data(data, '0');
@@ -199,51 +214,6 @@
                 width: '800px',
             };
             var graph2d = new vis.Graph2d(container, dataset, cpu0.groups, options);
-
-
-            /*
-            cpu2 = get_cpu_data(data, '2');
-
-            MG.data_graphic({
-                title: "CPU 2 usage",
-                description: "container cpu usage",
-                data: cpu2.data,
-                right: 40,
-                target: '#mychart_cpu2',
-                legend: cpu2.procs,
-                legend_target: '#legend2'
-            });
-
-            cpu3 = get_cpu_data(data, '3');
-
-            MG.data_graphic({
-                title: "CPU 3 usage",
-                description: "container cpu usage",
-                data: cpu3.data,
-                right: 40,
-                target: '#mychart_cpu3',
-                legend: cpu3.procs,
-                legend_target: '#legend3',
-            });
-
-            memory = get_memory_data(data);
-            console.log(memory);
-            MG.data_graphic({
-                title: "Memory usage",
-                description: "container memory usage",
-                data: memory.data,
-                right: 40,
-                target: '#mychart_memory',
-                legend: memory.procs,
-                legend_target: '#legendmemory',
-            });
-
-            ios_list = "";
-            for(var filename in cpu2.ios) {
-                ios_list += "<tr><td>" + filename + "</td><td>" + cpu2.ios[filename] + "</td></tr>";
-            }
-            $("#io").append(ios_list);
-            */
         });
     }
 
@@ -274,6 +244,7 @@
 
 
     var container_id = "262b281ffa9d";
+    var proc_id = "3108";
 
     d3.json('/container/'+container_id+'/proc', function(data) {
         var procs = get_procs(data['data']);
@@ -291,6 +262,7 @@
         load_io(container_id);
         load_cpu(container_id);
         load_mem(container_id);
+        load_per_cpu(container_id, proc_id);
 
     });
 
