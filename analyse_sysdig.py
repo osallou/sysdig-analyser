@@ -815,11 +815,11 @@ else:
         for line in sysdig_output:
             i += 1
             pbar.update(i)
-            matches = re.search('^(\d+)\s(\d+\.\d+)\s(\d+)\s([a-zA-Z0-9<>]+)\s\(([a-zA-Z0-9<>]+)\)\s([a-zA-Z0-9<>]+)\s\(([a-zA-Z0-9<>]+):([a-zA-Z0-9<>]+)\)\s([<>])\s(\w+)(.*)', line)
+            matches = re.search('^(\d+)\s(\d+\.\d+)\s(\d+)\s([a-zA-Z0-9<>_-]+)\s\(([a-zA-Z0-9<>]+)\)\s([a-zA-Z0-9<>]+)\s\(([a-zA-Z0-9<>]+):([a-zA-Z0-9<>]+)\)\s([<>])\s(\w+)(.*)', line)
             if matches:
                 event = {
                     'evt.num': int(matches.group(1)),
-                    'evt.outputtime': int(matches.group(2) * 1000000000),
+                    'evt.outputtime': int(float(matches.group(2)) * 1000000000),
                     'evt.cpu': int(matches.group(3)),
                     'container.name': matches.group(4),
                     'container.id': matches.group(5),
@@ -830,10 +830,19 @@ else:
                     'evt.type': matches.group(10),
                     'evt.info': matches.group(11)
                 }
+                if event['container.id'] == '<NA>':
+                    event['container.id'] = None
+                if event['container.name'] == '<NA>':
+                    event['container.name'] = None
+
                 if event['thread.tid'] != '<NA>':
                     event['thread.tid'] = int(event['thread.tid'])
+                else:
+                    event['thread.tid'] = 0
                 if event['thread.vtid'] != '<NA>':
                     event['thread.vtid'] = int(event['thread.vtid'])
+                else:
+                    event['thread.vtid'] = 0
                 if first_line:
                     first_line = False
                     begin_ts = event['evt.outputtime']
