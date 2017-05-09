@@ -574,6 +574,7 @@ def sysdig_event(event):
                 return
             logging.debug("StartEvent:"+str(utid)+':'+str(event['evt.num'])+':'+str(event['evt.cpu']))
             (vm_size, vm_rss, vm_swap) = __vm_info(event['evt.info'])
+
             prev_usage = {
                 'start': containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
                 'start_date': datetime.datetime.fromtimestamp(containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000),
@@ -618,156 +619,6 @@ def close_sysdig_events(sysdig_containers):
     for container in list(sysdig_containers.keys()):
         close_sysdig_event(container, sysdig_containers[container])
 
-def group_by_seconds(sysdig_containers, merge=1):
-    '''
-    Merge metrics within same *merge* seconds
-
-    :param merge: number of seconds events should be merged within
-    :type merge: int
-    :return: list containers with merged values
-    '''
-    logging.debug("## group_by_seconds")
-    merged_containers = {}
-    for name, container in sysdig_containers.iteritems():
-        logging.debug("container: " + name)
-        merged_containers[name] = copy.deepcopy(container)
-        # io
-        for proc in container['io'].keys():
-            proc_io = container['io'][proc]
-            if len(proc_io) > 0:
-                    prev_thread_io = proc_io
-                    proc_io = []
-                    first_io = True
-                    prev_io = {}
-                    for thread_io in prev_thread_io:
-                        if first_io:
-                            current_ts = thread_io['start_date']
-                            first_io = False
-                        if thread_io['start_date'] >= current_ts and thread_io['start_date'] < current_ts + datetime.timedelta(seconds=merge):
-                            # Merge with previous
-                            if thread_io['name'] not in prev_io:
-                                prev_io[thread_io['name']] = {
-                                    'in': thread_io['in'],
-                                    'out': thread_io['out'],
-                                    'start': thread_io['start'],
-                                    'start_date': thread_io['start_date'],
-                                    'debug_date': thread_io['debug_date']
-                                }
-                                # prev_io[thread_io['name']] = thread_io['length']
-                            else:
-                                prev_io[thread_io['name']]['in'] += thread_io['in']
-                                prev_io[thread_io['name']]['out'] += thread_io['out']
-                        else:
-                            proc_io.append(prev_io)
-                            current_ts = thread_io['start_date']
-                            prev_io = {}
-                    if len(prev_io.keys()) > 0:
-                        proc_io.append(prev_io)
-        for cpu in list(container['cpus'].keys()):
-            logging.debug("cpu: " + str(cpu))
-            for tid, thread in container['cpus'][cpu].iteritems():
-                # logging.error(thread)
-                logging.debug("tid: " + str(tid))
-                if len(thread['io']) > 0:
-                    prev_thread_io = thread['io']
-                    thread['io'] = []
-                    first_io = True
-                    prev_io = {}
-                    for thread_io in prev_thread_io:
-                        if first_io:
-                            current_ts = thread_io['start_date']
-                            first_io = False
-                        if thread_io['start_date'] >= current_ts and thread_io['start_date'] < current_ts + datetime.timedelta(seconds=merge):
-                            # Merge with previous
-                            if thread_io['name'] not in prev_io:
-                                prev_io[thread_io['name']] = {
-                                    'in': thread_io['in'],
-                                    'out': thread_io['out'],
-                                    'start': thread_io['start'],
-                                    'start_date': thread_io['start_date'],
-                                    'debug_date': thread_io['debug_date']
-                                }
-                                # prev_io[thread_io['name']] = thread_io['length']
-                            else:
-                                prev_io[thread_io['name']]['in'] += thread_io['in']
-                                prev_io[thread_io['name']]['out'] += thread_io['out']
-                        else:
-                            thread['io'].append(prev_io)
-                            current_ts = thread_io['start_date']
-                            prev_io = {}
-                    if len(prev_io.keys()) > 0:
-                        thread['io'].append(prev_io)
-
-
-                if len(thread['usage']) == 0:
-                    continue
-                prev_usages = thread['usage']
-                prev_usage = None
-                max_memory = 0
-                thread['usage'] = []
-                current_ts = prev_usages[0]['start_date']
-                next_ts = current_ts + datetime.timedelta(seconds=merge)
-                for usage in prev_usages:
-                    if usage['start_date'] >= next_ts:
-                        while usage['start_date'] >= next_ts:
-                            current_ts += datetime.timedelta(seconds=merge)
-                            next_ts = current_ts + datetime.timedelta(seconds=merge)
-                        logging.debug("go to next ts " + str(current_ts))
-                    logging.debug('Check if split needed')
-                    up_to = datetime.datetime.fromtimestamp((usage['start'] + usage['duration']) // 1000000000)
-
-                    if up_to > next_ts:
-                        logging.info('Split event' + str(usage))
-                        # Slip event in multiple ones
-                        splitted_usages = []
-                        nb_elts = ((usage['duration']/ 1000000000) / merge) + 1
-                        remaining_duration = usage['duration']
-                        ts_ns = time.mktime(next_ts.timetuple()) * 1000000000
-                        remaining_duration -= (ts_ns - usage['start'])
-                        first_splitted_usage = copy.deepcopy(usage)
-                        first_splitted_usage['duration'] = (ts_ns - usage['start'])
-                        splitted_usages.append(first_splitted_usage)
-                        for index in range(nb_elts):
-                            splitted_usage = copy.deepcopy(usage)
-                            splitted_usage['duration'] = min(merge * 1000000000, remaining_duration)
-                            splitted_usage['start'] += (merge * 1000000000 * index)
-                            splitted_usage['start_date'] = datetime.datetime.fromtimestamp(splitted_usage['start'] // 1000000000)
-                            splitted_usage['debug_date'] = str(splitted_usage['start_date'])
-                            splitted_usages.append(splitted_usage)
-                            remaining_duration -= splitted_usage['duration']
-                    else:
-                        splitted_usages = [usage]
-                    logging.debug('splitted events: ' + str(splitted_usages))
-                    for splitted_usage in splitted_usages:
-                        splitted_usage['cpu'] = cpu
-                        # splitted_usage['proc'] = tid
-                        splitted_usage['proc_id'] = tid
-                        splitted_usage['container'] = container['container_id']
-                        splitted_usage['proc'] =  container['procs'][tid]['name']+'(' + tid + ')'
-                        # __cassandra_cpu(splitted_usage)
-                        splitted_usage['total'] = merge * 1000000000
-                        logging.debug("Start: " + str(splitted_usage['start_date']) + " vs " + str(current_ts))
-                        logging.debug("Next: " + str(splitted_usage['start_date']) + " vs " + str(next_ts))
-                        logging.debug(str(splitted_usage))
-
-
-                        while splitted_usage['start_date'] >= next_ts:
-                            current_ts += datetime.timedelta(seconds=merge)
-                            next_ts = current_ts + datetime.timedelta(seconds=merge)
-                        if splitted_usage['start_date'] >= current_ts and splitted_usage['start_date'] < next_ts:
-                            __cassandra_cpu(splitted_usage)
-                            __cassandra_cpu_all(splitted_usage)
-
-                if 1==0 and prev_usage:
-                    logging.debug("Remaining, add prev_usage")
-                    logging.debug(prev_usage)
-                    thread['usage'].append(prev_usage)
-                    prev_usage['container'] = container['container_id']
-                    __cassandra_cpu(prev_usage)
-                    __cassandra_cpu_all(prev_usage)
-
-
-    return sysdig_containers
 
 last_ts = 0
 events = []
@@ -781,7 +632,7 @@ cmh = CassandraMemHandler(session)
 cih = CassandraIoHandler(session)
 cch = CassandraCpuHandler(session)
 
-is_js = True
+is_js = False
 if is_js:
     with open(sys.argv[1]) as sysdig_output:
         events = json.load(sysdig_output)
@@ -815,11 +666,13 @@ else:
         for line in sysdig_output:
             i += 1
             pbar.update(i)
-            matches = re.search('^(\d+)\s(\d+\.\d+)\s(\d+)\s([a-zA-Z0-9<>_-]+)\s\(([a-zA-Z0-9<>]+)\)\s([a-zA-Z0-9<>]+)\s\(([a-zA-Z0-9<>]+):([a-zA-Z0-9<>]+)\)\s([<>])\s(\w+)(.*)', line)
+            matches = re.search('^(\d+)\s(\d+\.\d+)\s(\d+)\s([a-zA-Z0-9<>_-]+)\s\(([a-zA-Z0-9<>]+)\)\s([a-zA-Z0-9<>\/\-_:]+)\s\(([a-zA-Z0-9<>]+):([a-zA-Z0-9<>]+)\)\s([<>])\s([a-zA-Z0-9<>]+)(.*)', line)
             if matches:
+                timeinfo = matches.group(2).split('.')
+                timestamp = int(timeinfo[0]) * 1000000000 + int(timeinfo[1])
                 event = {
                     'evt.num': int(matches.group(1)),
-                    'evt.outputtime': int(float(matches.group(2)) * 1000000000),
+                    'evt.outputtime': timestamp,
                     'evt.cpu': int(matches.group(3)),
                     'container.name': matches.group(4),
                     'container.id': matches.group(5),
@@ -846,7 +699,10 @@ else:
                 if first_line:
                     first_line = False
                     begin_ts = event['evt.outputtime']
+
                 sysdig_event(event)
+            else:
+                print("NOmatch: "+line)
     pbar.finish()
 
 cmh.flush()
@@ -856,7 +712,6 @@ cch.flush()
 '''
 close_sysdig_events(containers)
 
-merged_containers = group_by_seconds(containers, 1)
 '''
 # hierarchy and proc info
 for name, container in containers.iteritems():
