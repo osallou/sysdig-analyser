@@ -52,7 +52,7 @@ class CassandraMemHandler(CassandraHandler):
         SET vm_size = %s,
             vm_rss = %s,
             vm_swap = %s
-        WHERE ts=%s AND proc_name=%s AND container=%s
+        WHERE ts=%s AND proc_id=%s AND container=%s
         """,
         (event['vm_size'], event['vm_rss'], event['vm_swap'], event['start'], event['proc'], event['container'])
         )
@@ -210,7 +210,7 @@ class CassandraIoHandler(CassandraHandler):
         UPDATE io
         SET io_in = io_in + %s,
             io_out = io_out + %s
-        WHERE ts=%s AND proc_name=%s AND file_name=%s AND container=%s
+        WHERE ts=%s AND proc_id=%s AND file_name=%s AND container=%s
         """,
         (event['in'], event['out'], event['start'], event['proc'], event['name'], event['container'])
         )
@@ -219,7 +219,7 @@ class CassandraIoHandler(CassandraHandler):
         UPDATE io_all
         SET io_in = io_in + %s,
             io_out = io_out + %s
-        WHERE proc_name=%s AND file_name=%s AND container=%s
+        WHERE proc_id=%s AND file_name=%s AND container=%s
         """,
         (event['in'], event['out'], event['proc'], event['name'], event['container'])
         )
@@ -386,7 +386,10 @@ class SysDigEventManager():
             return
         logging.debug(str(event))
 
-        utid = str(event['thread.vtid'])
+        if event['thread.vtid'] is None:
+            event['thread.vtid'] = 0
+
+        utid = event['thread.vtid']
 
         if 'container.name' not in event:
             if 'mesos.task.name' in event:
@@ -577,26 +580,6 @@ class SysDigEventManager():
         self.last_call[event['evt.cpu']] = event['evt.outputtime']
         return
 
-'''
-def close_sysdig_event(name, container):
-    for cpu in list(container['cpus'].keys()):
-        for thread in list(container['cpus'][cpu].keys()):
-            event = container['cpus'][cpu][thread]
-            if event['last_cpu']:
-                # Close it!
-                event['usage'].append({
-                    'start': event['last_cpu'],
-                    'start_date': datetime.datetime.fromtimestamp(event['last_cpu'] // 1000000000),
-                    'debug_date': str(datetime.datetime.fromtimestamp(event['last_cpu'] // 1000000000)),
-                    'duration': end_ts - event['last_cpu'],
-                    'memory': (0, 0, 0),
-                })
-                event['last_cpu'] = None
-
-def close_sysdig_events(sysdig_containers):
-    for container in list(sysdig_containers.keys()):
-        close_sysdig_event(container, sysdig_containers[container])
-'''
 
 @click.command()
 @click.option('--name', help='file name to analyse')
@@ -718,14 +701,14 @@ def analyse_events(name, host, cluster, use_json, use_text, progress):
     logging.debug('Finalize...')
     for name, container in eventManager.containers.iteritems():
         for proc_id, proc_info in container['hierarchy'].iteritems():
-            exe = container['procs'][str(proc_id)]['name']
+            exe = container['procs'][proc_id]['name']
             args = ''
-            if str(proc_id) in container['commands']:
-                exe = container['commands'][str(proc_id)]['exe']
-                args = container['commands'][str(proc_id)]['args']
+            if proc_id in container['commands']:
+                exe = container['commands'][proc_id]['exe']
+                args = container['commands'][proc_id]['args']
             proc_event = {
-                'proc_id': int(proc_id),
-                'proc_name': container['procs'][str(proc_id)]['name'],
+                'proc_id': proc_id,
+                'proc_name': container['procs'][proc_id]['name'],
                 'parent_id': container['hierarchy'][proc_id],
                 'exe': exe,
                 'args': args,

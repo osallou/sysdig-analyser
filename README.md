@@ -65,10 +65,26 @@ TODO: change proc_name varchar to proc_id int except in table proc
                 WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
 
             USE sysdig;
-            CREATE TABLE io (container varchar, io_in counter, io_out counter, ts timestamp, proc_name varchar, file_name varchar, PRIMARY KEY (container, proc_name, ts, file_name));
-            CREATE TABLE io_all (container varchar, io_in counter, io_out counter, proc_name varchar, file_name varchar, PRIMARY KEY (container, proc_name, file_name));
-            CREATE TABLE mem (container varchar,vm_size bigint, vm_rss bigint, vm_swap bigint, ts timestamp, proc_name varchar, PRIMARY KEY (container, proc_name, ts));
+            CREATE TABLE io (container varchar, io_in counter, io_out counter, ts timestamp, proc_id int, file_name varchar, PRIMARY KEY (container, proc_id, ts, file_name));
+            CREATE TABLE io_all (container varchar, io_in counter, io_out counter, proc_id int, file_name varchar, PRIMARY KEY (container, proc_id, file_name));
+            CREATE TABLE mem (container varchar,vm_size bigint, vm_rss bigint, vm_swap bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
             CREATE TABLE cpu (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
             CREATE TABLE cpu_all (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
             CREATE TABLE proc (container varchar, start timestamp, end timestamp, proc_name varchar, exe varchar, args varchar, proc_id int, parent_id int, PRIMARY KEY (container, proc_id));
             CREATE TABLE proc_cpu (container varchar, cpu counter, proc_id int, PRIMARY KEY (container, proc_id));
+
+
+            // retention 10h
+            CREATE TABLE cpu_per_m (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
+            CREATE TABLE cpu_all_per_m (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
+            // retention 24h*30 ~ 1m
+            CREATE TABLE cpu_per_h (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
+            CREATE TABLE cpu_all_per_h (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
+            // retention 120d ~ 3m
+            CREATE TABLE cpu_per_d (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
+            CREATE TABLE cpu_all_per_d (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
+
+
+            CREATE TABLE mem_per_m (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
+            CREATE TABLE mem_per_h (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
+            CREATE TABLE mem_per_d (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));

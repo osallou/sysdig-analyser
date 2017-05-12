@@ -1,4 +1,5 @@
 from flask import Flask
+from flask import request
 from flask.json import jsonify
 import os
 import json
@@ -29,42 +30,60 @@ def __cassandra_select_procs(container):
         })
     return result
 
-def __cassandra_select_mem(container):
+def __cassandra_select_mem(container, interval='s'):
+    table = 'mem';
+    if interval == 'm':
+        table = 'mem_per_m';
+    if interval == 'h':
+        table = 'mem_per_h';
+    if interval == 'd':
+        table = 'mem_per_d';
     result = {}
-    rows = session.execute("SELECT * FROM mem WHERE container='"+container+"'");
+    rows = session.execute("SELECT * FROM " + table + " WHERE container='"+container+"'");
     for row in rows:
-        if row.proc_name not in result:
-            result[row.proc_name] = []
-        result[row.proc_name].append({
+        if row.proc_id not in result:
+            result[row.proc_id] = []
+        result[row.proc_id].append({
             'ts': time.mktime(row.ts.timetuple()),
             'vm_size': row.vm_size,
-            'proc_name': row.proc_name
+            'proc_name': row.proc_id
         })
     return result
 
-def __cassandra_select_io(container, proc_name=None):
+def __cassandra_select_io(container, proc_id=None):
     result = {}
     rows = session.execute("SELECT * FROM io_all WHERE container='"+container+"'");
     for row in rows:
-        if proc_name and proc_name!=row.proc_name:
+        if proc_id and proc_id!=row.proc_id:
             continue
-        if row.proc_name not in result:
-            result[row.proc_name] = []
-        result[row.proc_name].append({
+        if row.proc_id not in result:
+            result[row.proc_id] = []
+        result[row.proc_id].append({
             'file_name': row.file_name,
-            'proc_id': row.proc_name,
+            'proc_id': row.proc_id,
             'io_in': row.io_in,
             'io_out': row.io_out
         })
     return result
 
-def __cassandra_select_cpu(container, proc_id=None):
+def __cassandra_select_cpu(container, proc_id=None, interval='s'):
     rows = []
     result = {}
+    table = 'cpu';
+    table_all = 'cpu_all'
+    if interval == 'm':
+        table = 'cpu_per_m';
+        table_all = 'cpu_all_per_m'
+    if interval == 'h':
+        table = 'cpu_per_h';
+        table_all = 'cpu_all_per_h'
+    if interval == 'd':
+        table = 'cpu_per_d';
+        table_all = 'cpu_all_per_d'
     if proc_id:
-        rows = session.execute("SELECT * FROM cpu WHERE container='"+container+"' AND proc_id="+str(proc_id))
+        rows = session.execute("SELECT * FROM " + table + " WHERE container='"+container+"' AND proc_id="+str(proc_id))
     else:
-        rows = session.execute("SELECT * FROM cpu_all WHERE container='"+container+"'")
+        rows = session.execute("SELECT * FROM " + table_all + " WHERE container='"+container+"'")
     for row in rows:
         res = {
             'proc_name': row.proc_id,
@@ -83,11 +102,17 @@ app = Flask(__name__)
 
 @app.route("/container/<cid>/cpu/<proc_id>")
 def container_cpu(cid, proc_id):
-    return jsonify(__cassandra_select_cpu(cid, proc_id))
+    interval = request.args.get('interval')
+    if interval is None:
+        interval = 's'
+    return jsonify(__cassandra_select_cpu(cid, proc_id, interval=interval))
 
 @app.route("/container/<cid>/cpu")
 def container_cpus(cid):
-    return jsonify(__cassandra_select_cpu(cid))
+    interval = request.args.get('interval')
+    if interval is None:
+        interval = 's'
+    return jsonify(__cassandra_select_cpu(cid, interval=interval))
 
 @app.route("/container/<cid>/proc")
 def container_procs(cid):
@@ -95,7 +120,10 @@ def container_procs(cid):
 
 @app.route("/container/<cid>/mem")
 def container_mem(cid):
-    return jsonify(__cassandra_select_mem(cid))
+    interval = request.args.get('interval')
+    if interval is None:
+        interval = 's'
+    return jsonify(__cassandra_select_mem(cid, interval=interval))
 
 @app.route("/container/<cid>/io")
 def container_io(cid):

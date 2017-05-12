@@ -7,6 +7,8 @@
     <link href="bower_components/bootstrap/dist/css/bootstrap.min.css" type="text/css" rel="stylesheet"/>
     <link href="metrics-graphics-2.11.0/dist/metricsgraphics.css" type="text/css" rel="stylesheet"/>
     <link href="bower_components/vis/dist/vis.min.css" type="text/css" rel="stylesheet"/>
+    <style>
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-default">
@@ -29,89 +31,97 @@
             <li><a href="#memory_tab">Memory</a></li>
             <li><a href="#proc_tab">Processes</a></li>
             <li><a href="#io_tab">IO</a></li>
-
           </ul>
 
         </div><!-- /.navbar-collapse -->
       </div><!-- /.container-fluid -->
     </nav>
+    <div class="container">
+        <div class="row">
+            <button class="btn btn-primary" id="show_cpu_s">seconds</button>
+            <button class="btn btn-primary" id="show_cpu_m">minutes</button>
+            <button class="btn btn-primary" id="show_cpu_h">hours</button>
+            <button class="btn btn-primary" id="show_cpu_d">days</button>
+        </div>
 
-    <div class="row" id="cpu_tab">
-        <div class="panel panel-primary">
-            <div class="panel-heading">CPU</div>
-            <div class="panel-body">
-                <div class="col-md-6">
-                    <div class="row">
-                        <div id="mychart_cpu0"></div>
-                    </div>
+        <div class="row" id="cpu_tab">
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    CPU
                 </div>
-                <div class="col-md-6">
-                    <div class="row">
-                        <div class="col-md-2">
-                        <span>Details </span>
-                        </div>
-                        <div class="col-md-4">
-                            <form class="form form-inline">
-                                <div class="form-group">
-                                    <select class="form-control" id="cpu_proc">
-                                    </select>
-                                    <button type="button" class="btn btn-primary" id="cpu_proc_show">show</button>
-                                </div>
-                            </form>
+                <div class="panel-body">
+                    <div class="col-md-6">
+                        <div class="row">
+                            <div id="mychart_cpu0"></div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div id="mychart_cpu_details"></div>
+                    <div class="col-md-6">
+                        <div class="row">
+                            <div class="col-md-2">
+                            <span>Details </span>
+                            </div>
+                            <div class="col-md-4">
+                                <form class="form form-inline">
+                                    <div class="form-group">
+                                        <select class="form-control" id="cpu_proc">
+                                        </select>
+                                        <button type="button" class="btn btn-primary" id="cpu_proc_show">show</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div id="mychart_cpu_details"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
 
-    <div class="row" id="memory_tab">
-        <div class="panel panel-primary">
-            <div class="panel-heading">Memory</div>
-            <div class="panel-body">
-                    <div class="row">
-                        <div id="mychart_mem"></div>
-                    </div>
+        <div class="row" id="memory_tab">
+            <div class="panel panel-primary">
+                <div class="panel-heading">Memory</div>
+                <div class="panel-body">
+                        <div class="row">
+                            <div id="mychart_mem"></div>
+                        </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="row" id="proc_tab">
-        <div class="panel panel-primary">
-            <div class="panel-heading">Processes</div>
-            <div class="panel-body">
-                    <div id="procs_relationship">
-                    </div>
-                    <table class="table table-condensed table-striped table-bordered">
+        <div class="row" id="proc_tab">
+            <div class="panel panel-primary">
+                <div class="panel-heading">Processes</div>
+                <div class="panel-body">
+                        <div id="procs_relationship">
+                        </div>
+                        <table class="table table-condensed table-striped table-bordered">
+                            <thead>
+                                <th>Process id</th><th>Exe</th><th>Args</th>
+                            </thead>
+                            <tbody id="proc_info">
+                            </tbody>
+                        </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" id="io_tab">
+            <div class="panel panel-primary">
+                <div class="panel-heading">IO</div>
+                <div class="panel-body">
+                    <table id="io" class="table table-condensed table-striped table-bordered">
                         <thead>
-                            <th>Process id</th><th>Exe</th><th>Args</th>
+                            <th>Process id</th><th>File name</th><th>Bytes in</th><th>Bytes out</th>
                         </thead>
-                        <tbody id="proc_info">
+                        <tbody id="io_all_list">
                         </tbody>
                     </table>
+                </div>
             </div>
         </div>
     </div>
-
-    <div class="row" id="io_tab">
-        <div class="panel panel-primary">
-            <div class="panel-heading">IO</div>
-            <div class="panel-body">
-                <table id="io" class="table table-condensed table-striped table-bordered">
-                    <thead>
-                        <th>Process id</th><th>File name</th><th>Bytes in</th><th>Bytes out</th>
-                    </thead>
-                    <tbody id="io_all_list">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
 
     <script>
 
@@ -142,6 +152,17 @@
     }
 
     function get_per_cpu(data, proc_id){
+        var sub = 1;
+        if(interval == 'm') {
+            sub = 60;
+        }
+        else if (interval == 'h') {
+            sub = 3600;
+        }
+        else if (interval == 'd') {
+            sub = 3600 * 24;
+        }
+
         var cpu_data = [];
         var procs = [];
         var groups = [];
@@ -152,7 +173,7 @@
                 groups.push({'id': data[proc_id][i]['cpu'], "content": "cpu" + data[proc_id][i]['cpu']})
                 cpu_list.push(data[proc_id][i]['cpu']);
             }
-            metric = {'x': new Date((data[proc_id][i]['ts']*1000)), 'y': data[proc_id][i]['duration'] * 100 / (1000000000), 'group': data[proc_id][i]['cpu']}
+            metric = {'x': new Date((data[proc_id][i]['ts']*1000)), 'y': data[proc_id][i]['duration'] * 100 / (1000000000 * sub), 'group': data[proc_id][i]['cpu']}
             cpu_data.push(metric);
 
         }
@@ -161,6 +182,17 @@
 
 
     function get_cpu_all(data){
+        var sub = 1;
+        if(interval == 'm') {
+            sub = 60;
+        }
+        else if (interval == 'h') {
+            sub = 3600;
+        }
+        else if (interval == 'd') {
+            sub = 3600 * 24;
+        }
+
         var cpu_data = [];
         var procs = [];
         var groups = [];
@@ -169,7 +201,7 @@
 
             groups.push({'id': key, "content": proc_list[key]+"("+key+")"})
             for(var i=0;i<data[key].length;i++){
-                metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['duration'] * 100 / (1000000000), 'group': key}
+                metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['duration'] * 100 / (1000000000 * sub), 'group': key}
                 cpu_data.push(metric);
             }
         }
@@ -226,7 +258,7 @@
 
 
     function load_per_cpu(container, proc_id){
-        d3.json('/container/'+container+'/cpu/' + proc_id, function(data) {
+        d3.json('/container/'+container+'/cpu/' + proc_id + '?interval=' + interval, function(data) {
             $("#mychart_cpu_details").html("");
             //cpu0 = get_cpu_data(data, '0');
             cpu_data = get_per_cpu(data, proc_id);
@@ -247,8 +279,8 @@
 
 
     function load_cpu(container){
-        d3.json('/container/'+container+'/cpu', function(data) {
-            //cpu0 = get_cpu_data(data, '0');
+        d3.json('/container/'+container+'/cpu?interval=' + interval, function(data) {
+            $("#mychart_cpu0").html("");
             cpu0 = get_cpu_all(data);
 
             var container = document.getElementById('mychart_cpu0');
@@ -265,8 +297,8 @@
     }
 
     function load_mem(container){
-        d3.json('/container/'+container+'/mem', function(data) {
-            //cpu0 = get_cpu_data(data, '0');
+        d3.json('/container/'+container+'/mem?interval=' + interval, function(data) {
+            $("#mychart_mem").html("");
             var mem = get_mem(data);
 
             var container = document.getElementById('mychart_mem');
@@ -315,6 +347,33 @@
         load_per_cpu($.urlParam('container'), $("#cpu_proc").val());
     });
 
+    var interval = 's';
+
+    $("#show_cpu_s").click(function(){
+        interval = 's';
+        load_cpu($.urlParam('container'));
+        load_mem($.urlParam('container'));
+    });
+
+    $("#show_cpu_m").click(function(){
+        interval = 'm';
+        load_cpu($.urlParam('container'));
+        load_mem($.urlParam('container'));
+    });
+
+    $("#show_cpu_h").click(function(){
+        interval = 'h';
+        load_cpu($.urlParam('container'));
+        load_mem($.urlParam('container'));
+    });
+
+    $("#show_cpu_d").click(function(){
+        interval = 'd';
+        load_cpu($.urlParam('container'));
+        load_mem($.urlParam('container'));
+    });
+
+
 
 
     $.urlParam = function (name) {
@@ -325,7 +384,7 @@
 }
 
     $(document).ready(function(){
-        load_proc($.urlParam('container'));
+        load_proc($.urlParam('container'),'s');
     });
 
     </script>
