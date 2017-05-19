@@ -4,10 +4,26 @@
     <script src="bower_components/d3/d3.min.js"></script>
     <script src="metrics-graphics-2.11.0/dist/metricsgraphics.min.js"></script>
     <script src="bower_components/vis/dist/vis.min.js"></script>
+    <script src="bower_components/datatables.net/js/jquery.dataTables.min.js"></script>
     <link href="bower_components/bootstrap/dist/css/bootstrap.min.css" type="text/css" rel="stylesheet"/>
     <link href="metrics-graphics-2.11.0/dist/metricsgraphics.css" type="text/css" rel="stylesheet"/>
     <link href="bower_components/vis/dist/vis.min.css" type="text/css" rel="stylesheet"/>
+    <link href="bower_components/datatables/media/css/dataTables.bootstrap.min.css" type="text/css" rel="stylesheet"/>
     <style>
+        .glyphicon-refresh-animate {
+            -animation: spin .7s infinite linear;
+            -webkit-animation: spin2 .7s infinite linear;
+        }
+
+        @-webkit-keyframes spin2 {
+            from { -webkit-transform: rotate(0deg);}
+            to { -webkit-transform: rotate(360deg);}
+        }
+
+        @keyframes spin {
+            from { transform: scale(1) rotate(0deg);}
+            to { transform: scale(1) rotate(360deg);}
+        }
     </style>
 </head>
 <body>
@@ -47,30 +63,30 @@
         <div class="row" id="cpu_tab">
             <div class="panel panel-primary">
                 <div class="panel-heading">
-                    CPU
+                    Top CPU <button id="cpu_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button>
                 </div>
                 <div class="panel-body">
-                    <div class="col-md-6">
-                        <div class="row">
-                            <div id="mychart_cpu0"></div>
+                    <div class="row">
+                        <div class="col-md-6">
+                        </div>
+                        <div class="col-md-6">
+                            <form class="form form-inline">
+                                <div class="form-group">
+                                    <span>Details </span>
+                                    <select class="form-control" id="cpu_proc">
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <button type="button" class="btn btn-primary" id="cpu_proc_show">show</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="row">
-                            <div class="col-md-2">
-                            <span>Details </span>
-                            </div>
-                            <div class="col-md-4">
-                                <form class="form form-inline">
-                                    <div class="form-group">
-                                        <select class="form-control" id="cpu_proc">
-                                        </select>
-                                        <button type="button" class="btn btn-primary" id="cpu_proc_show">show</button>
-                                    </div>
-                                </form>
-                            </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                                <div id="mychart_cpu0"></div>
                         </div>
-                        <div class="row">
+                        <div class="col-md-6">
                             <div id="mychart_cpu_details"></div>
                         </div>
                     </div>
@@ -81,7 +97,7 @@
 
         <div class="row" id="memory_tab">
             <div class="panel panel-primary">
-                <div class="panel-heading">Memory</div>
+                <div class="panel-heading">Top Memory <button id="mem_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
                 <div class="panel-body">
                         <div class="row">
                             <div id="mychart_mem"></div>
@@ -92,11 +108,11 @@
 
         <div class="row" id="proc_tab">
             <div class="panel panel-primary">
-                <div class="panel-heading">Processes</div>
+                <div class="panel-heading">Processes <button id="proc_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
                 <div class="panel-body">
                         <div id="procs_relationship">
                         </div>
-                        <table class="table table-condensed table-striped table-bordered">
+                        <table id="proc_table" class="display table table-condensed table-striped table-bordered">
                             <thead>
                                 <th>Process id</th><th>Exe</th><th>Args</th>
                             </thead>
@@ -109,9 +125,9 @@
 
         <div class="row" id="io_tab">
             <div class="panel panel-primary">
-                <div class="panel-heading">IO</div>
+                <div class="panel-heading">IO <button id="io_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
                 <div class="panel-body">
-                    <table id="io" class="table table-condensed table-striped table-bordered">
+                    <table id="io_table" class="display table table-condensed table-striped table-bordered">
                         <thead>
                             <th>Process id</th><th>File name</th><th>Bytes in</th><th>Bytes out</th>
                         </thead>
@@ -224,21 +240,63 @@
     }
 
     function get_procs(data){
-        var proc_selection = "";
+        // var proc_selection = "";
         var proc_info = "";
         var result = {'nodes': [], 'edges': []}
+        treenode = {}
+        for(var i=0;i<data.length;i++){
+            var dataelt = data[i];
+            proc_info += "<tr><td>" + dataelt['id']+ "</td><td>" + dataelt['exe'] + "</td><td>" + dataelt['args'] + "</td></tr>";
+            var dataelt = data[i];
+            proc_list[dataelt['id']] = dataelt['name'];
+            if(treenode[dataelt['parent']]==undefined){
+                treenode[dataelt['parent']] = [];
+            }
+            treenode[dataelt['parent']].push({'id': dataelt['id'], 'name': dataelt['name']});
+        }
+
+        var root = treenode[1];
+        result['nodes'].push({'id': 1, 'label': proc_list[1]+"(1)"});
+        for(var i=0;i<root.length;i++){
+            var child = root[i];
+            result['nodes'].push({'id':  child['id'], 'label':  proc_list[child['id']]+"("+ child['id']+")"});
+            result['edges'].push({'from': 1, 'to': child['id'], arrows:'to'});
+            var childchild = treenode[child['id']];
+            if(childchild.length<15){
+                for(var j=0;j<childchild.length;j++){
+                    var subchild = childchild[j];
+                    result['nodes'].push({'id':  subchild['id'], 'label':  proc_list[subchild['id']]+"("+ subchild['id']+")"});
+                    result['edges'].push({'from': child['id'], 'to': subchild['id'], arrows:'to'});
+                }
+            }
+            else{
+                console.log("Proc network: too many sub processes: "+childchild.length)
+            }
+            /*
+            for(var j=0;j<childs.length;j++){
+                var child = childs[j];
+                console.log(child);
+                result['nodes'].push({'id':  child['id'], 'label':  child['name']+"("+ child['id']+")"});
+                result['edges'].push({'from': 1, 'to': child['id'], arrows:'to'});
+            }
+            */
+        }
+        treenode = null;
+        /*
         for(var i=0;i<data.length;i++){
             var dataelt = data[i];
             proc_list[dataelt['id']] = dataelt['name'];
-            proc_selection += "<option value=\"" + dataelt['id'] + "\">" + dataelt['name'] + "("+dataelt['id']+")" + "</option>";
+            // proc_selection += "<option value=\"" + dataelt['id'] + "\">" + dataelt['name'] + "("+dataelt['id']+")" + "</option>";
             proc_info += "<tr><td>" + dataelt['id']+ "</td><td>" + dataelt['exe'] + "</td><td>" + dataelt['args'] + "</td></tr>";
-            result['nodes'].push({'id': dataelt['id'], 'label': dataelt['name']+"("+dataelt['id']+")"});
-            if(dataelt['parent']){
-                result['edges'].push({'from': dataelt['parent'], 'to': dataelt['id'], arrows:'to'})
-            }
+                result['nodes'].push({'id': dataelt['id'], 'label': dataelt['name']+"("+dataelt['id']+")"});
+                if(dataelt['parent']){
+                    result['edges'].push({'from': dataelt['parent'], 'to': dataelt['id'], arrows:'to'})
+                }
         }
-        $("#cpu_proc").append(proc_selection);
+        */
+        // $("#cpu_proc").append(proc_selection);
         $("#proc_info").append(proc_info);
+        $("#proc_table").DataTable();
         return result;
     }
 
@@ -251,8 +309,9 @@
                     io_list += "<tr><td>" + proc_list[elt["proc_id"]] + "(" + elt["proc_id"] +")" + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>";
                 }
             }
-            $("#io_all_list").append(io_list);
-
+            $("#io_loading").hide();
+            $("#io_all_list").html(io_list);
+            $("#io_table").DataTable();
         });
     }
 
@@ -263,7 +322,6 @@
             //cpu0 = get_cpu_data(data, '0');
             cpu_data = get_per_cpu(data, proc_id);
             // console.log(cpu0);
-
             var container = document.getElementById('mychart_cpu_details');
             var dataset = new vis.DataSet(cpu_data.data);
             var options = {
@@ -282,7 +340,7 @@
         d3.json('/container/'+container+'/cpu?interval=' + interval, function(data) {
             $("#mychart_cpu0").html("");
             cpu0 = get_cpu_all(data);
-
+            $("#cpu_loading").hide();
             var container = document.getElementById('mychart_cpu0');
             var dataset = new vis.DataSet(cpu0.data);
             var options = {
@@ -293,12 +351,21 @@
                 //width: '800px',
             };
             var graph2d = new vis.Graph2d(container, dataset, cpu0.groups, options);
+            $("#cpu_proc").html("");
+            var proc_selection = "";
+            for(var i=0; i<cpu0.procs.length;i++){
+                var proc_name = proc_list[cpu0.procs[i]];
+                proc_selection += "<option value=\"" + cpu0.procs[i] + "\">" + proc_name + "("+cpu0.procs[i]+")" + "</option>";
+            }
+            $("#cpu_proc").append(proc_selection);
+            return cpu0.procs;
         });
     }
 
     function load_mem(container){
         d3.json('/container/'+container+'/mem?interval=' + interval, function(data) {
             $("#mychart_mem").html("");
+            $("#mem_loading").hide();
             var mem = get_mem(data);
 
             var container = document.getElementById('mychart_mem');
@@ -317,14 +384,19 @@
                 }
             };
             var graph2d = new vis.Graph2d(container, dataset, mem.groups, options);
-
+            return mem.procs;
         });
     }
 
     function load_proc(container_id){
         d3.json('/container/'+container_id+'/proc', function(data) {
             var procs = get_procs(data['data']);
+            load_io(container_id);
+            top_procs = load_cpu(container_id);
+            top_mem = load_mem(container_id);
             var container = document.getElementById('procs_relationship');
+            $("#proc_loading").hide();
+
             var nodes = new vis.DataSet(procs.nodes);
             var edges = new vis.DataSet(procs.edges);
             var netdata = {
@@ -336,9 +408,6 @@
             };
             var network = new vis.Network(container, netdata, options);
 
-            load_io(container_id);
-            load_cpu(container_id);
-            load_mem(container_id);
 
         });
     }

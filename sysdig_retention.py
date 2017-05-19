@@ -109,39 +109,43 @@ def __cassandra_query_cpu_all(session, container, retention):
 
 def __cassandra_delete(session, retention):
     (retention_seconds, retention_interval) = __get_retention_interval(retention)
-    # TODO delete old data
     now = datetime.datetime.now()
     table = 'cpu'
     table_all = 'cpu_all'
     table_mem = 'mem'
 
-    if retention == 'h':
+    if retention == 'm':
         table = 'cpu_per_m'
         table_all = 'cpu_all_per_m'
         table_mem = 'mem_per_m'
 
-    if retention == 'd':
+    if retention == 'h':
         table = 'cpu_per_h'
         table_all = 'cpu_all_per_h'
         table_mem = 'mem_per_h'
 
+    if retention == 'd':
+        table = 'cpu_per_d'
+        table_all = 'cpu_all_per_d'
+        table_mem = 'mem_per_d'
+
     session.execute(
     """
-    DELETE FROM %s WHERE ts<=%s allow filtering;
+    DELETE FROM """ + table + """ WHERE ts<=%s allow filtering;
     """,
-    table, now - datetime.timedelta(seconds=retention_seconds)
+    (now - datetime.timedelta(seconds=retention_seconds))
     )
     session.execute(
     """
-    DELETE FROM %s WHERE ts<=%s allow filtering;
+    DELETE FROM """ + table_all + """ WHERE ts<=%s allow filtering;
     """,
-    table_all, now - datetime.timedelta(seconds=retention_seconds)
+    (now - datetime.timedelta(seconds=retention_seconds))
     )
     session.execute(
     """
-    DELETE FROM %s WHERE ts<=%s allow filtering;
+    DELETE FROM """ + table_mem + """ WHERE ts<=%s allow filtering;
     """,
-    table_mem, now - datetime.timedelta(seconds=retention_seconds)
+    (now - datetime.timedelta(seconds=retention_seconds))
     )
 
 def add_event(events, event):
@@ -247,11 +251,18 @@ def __get_retention_interval(retention):
     return (retention_seconds, retention_interval)
 
 
-@click.command()
+@click.group()
+def run():
+    pass
+
+@run.command()
 @click.option('--retention', default='m', help='retention m(minutes), h(hours), d(days)')
 @click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
 @click.option('--cluster', default='sysdig', help='cassandra cluster name')
-def events_retention(retention, host, cluster):
+def retain(retention, host, cluster):
+    '''
+    Merge events in larger window
+    '''
     if len(host) == 0:
         host_list = ['127.0.0.1']
     else:
@@ -281,10 +292,30 @@ def events_retention(retention, host, cluster):
         if rows:
             sorted_rows = sorted(rows, key=lambda x: x.ts)
             __cassandra_compute_mem(session, sorted_rows, retention=retention)
-    # TODO uncomment and test delete
-    # __cassandra_delete(session, retention=retention)
 
+
+@run.command()
+@click.option('--retention', default='m', help='retention m(minutes), h(hours), d(days)')
+@click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
+@click.option('--cluster', default='sysdig', help='cassandra cluster name')
+def clean(retention, host, cluster):
+    '''
+    Delete old events
+    '''
+    if len(host) == 0:
+        host_list = ['127.0.0.1']
+    else:
+        host_list = list(host)
+
+    try:
+        cassandra_cluster = Cluster(host_list)
+        session = cassandra_cluster.connect(cluster)
+        session.default_timeout = 30.0
+    except Exception as e:
+        logging.error("Cassandra connection error: " + str(e))
+        sys.exit(1)
+    __cassandra_delete(session, retention=retention)
 
 
 if __name__ == '__main__':
-    events_retention()
+    run()
