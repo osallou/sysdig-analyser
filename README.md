@@ -9,7 +9,7 @@ result is inserted in cassandra.
 
 # requirements
 
-python: click, cassandra-driver, mongo, progressbar, flask, gunicorn, PyYAML, PyJWT
+python: click, cassandra-driver, mongo, progressbar, flask, gunicorn, PyYAML, PyJWT, prometheus_client
 
 # To execute sysdig
 
@@ -57,6 +57,9 @@ then
 
 ## prod
 
+    rm -rf ..path_to/prometheus-multiproc
+    mkdir -p ..path_to/prometheus-multiproc
+    export prometheus_multiproc_dir=..path_to/prometheus-multiproc
      gunicorn --bind 0.0.0.0 sysdig_web:app
 
 => http://localhost:5000/static/index.html?container=262b281ffa9d

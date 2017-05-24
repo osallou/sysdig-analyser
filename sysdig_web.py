@@ -7,11 +7,30 @@ import logging
 import sys
 import datetime
 import time
+
+
 import yaml
 from bson import json_util
 import jwt
-
+from prometheus_client import Counter, Histogram
+from prometheus_client.exposition import generate_latest
+from prometheus_client import multiprocess
+from prometheus_client import CollectorRegistry
 from cassandra.cluster import Cluster
+
+FLASK_REQUEST_LATENCY = Histogram('flask_request_latency_seconds', 'Flask Request Latency',
+				['method', 'endpoint'])
+FLASK_REQUEST_COUNT = Counter('flask_request_count', 'Flask Request Count',
+				['method', 'endpoint', 'http_status'])
+
+def before_request():
+    request.start_time = time.time()
+
+def after_request(response):
+    request_latency = time.time() - request.start_time
+    FLASK_REQUEST_LATENCY.labels(request.method, request.path).observe(request_latency)
+    FLASK_REQUEST_COUNT.labels(request.method, request.path, response.status_code).inc()
+    return response
 
 config_file = 'config.yml'
 if 'BC_CONFIG' in os.environ:
@@ -261,6 +280,15 @@ def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
     return result
 
 app = Flask(__name__)
+app.before_request(before_request)
+app.after_request(after_request)
+
+
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    registry = CollectorRegistry()
+    multiprocess.MultiProcessCollector(registry)
+    return generate_latest(registry)
 
 @app.route("/container/<cid>/cpu/<proc_id>")
 def container_cpu(cid, proc_id):
