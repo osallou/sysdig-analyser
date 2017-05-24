@@ -8,3 +8,13 @@ auth:
     # check that container id in token match requested container
     enable: true
     secret: 'mytoken'
+
+consul:
+    host: null
+    # Unique agent identifier name among web instances
+    id: 'bc_agent_1'
+
+# current web server access
+web:
+    hostname: '127.0.0.1'
+    port: 5000

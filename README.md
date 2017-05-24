@@ -9,7 +9,7 @@ result is inserted in cassandra.
 
 # requirements
 
-python: click, cassandra-driver, mongo, progressbar, flask, gunicorn, PyYAML, PyJWT, prometheus_client
+    pip install click cassandra-driver mongo progressbar flask gunicorn PyYAML PyJWT prometheus_client python-consul
 
 # To execute sysdig
 

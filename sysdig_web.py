@@ -17,6 +17,7 @@ from prometheus_client.exposition import generate_latest
 from prometheus_client import multiprocess
 from prometheus_client import CollectorRegistry
 from cassandra.cluster import Cluster
+import consul
 
 FLASK_REQUEST_LATENCY = Histogram('flask_request_latency_seconds', 'Flask Request Latency',
 				['method', 'endpoint'])
@@ -41,6 +42,7 @@ if os.path.exists(config_file):
     with open(config_file, 'r') as ymlfile:
         config = yaml.load(ymlfile)
 
+
 cassandra_hosts = ['127.0.0.1']
 cassandra_cluster = 'sysdig'
 if 'cassandra' in config:
@@ -55,6 +57,15 @@ session = cluster.connect(cassandra_cluster)
 
 top_n = 10
 
+def consul_declare(config):
+    if config['consul']['host']:
+        logging.warn("Register to consul")
+        consul_agent = consul.Consul(host=config['consul']['host'])
+        consul_agent.agent.service.register('bubble-watcher', service_id=config['consul']['id'], address=config['web']['hostname'], port=config['web']['port'], tags=['biomaj'])
+        check = consul.Check.http(url='http://' + config['web']['hostname'] + ':' + str(config['web']['port']) + '/ping', interval=60)
+        consul_agent.agent.check.register(config['consul']['id'] + '_check', check=check, service_id=config['consul']['id'])
+
+consul_declare(config)
 
 def check_auth(container_id):
     if not config['auth']['enable']:
@@ -282,6 +293,10 @@ def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
 app = Flask(__name__)
 app.before_request(before_request)
 app.after_request(after_request)
+
+@app.route('/ping', methods=['GET'])
+def ping():
+    return jsonify({'msg': 'pong'})
 
 
 @app.route('/metrics', methods=['GET'])
