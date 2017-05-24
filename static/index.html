@@ -52,7 +52,11 @@
         </div><!-- /.navbar-collapse -->
       </div><!-- /.container-fluid -->
     </nav>
+
     <div class="container">
+
+        <div class="row" id="msg"></div>
+
         <div class="row">
             <button class="btn btn-primary" id="show_cpu_s">seconds</button>
             <button class="btn btn-primary" id="show_cpu_m">minutes</button>
@@ -310,7 +314,7 @@
     }
 
     function load_io(container){
-        d3.json('/container/'+container+'/io', function(data) {
+        d3.json('/container/'+container+'/io').header('Authorization', 'token ' + token).get(function(data) {
             var io_list = "";
             for(var key in data){
                 for(var i=0;i<data[key].length;i++){
@@ -326,7 +330,7 @@
 
 
     function load_per_cpu(container, proc_id){
-        d3.json('/container/'+container+'/cpu/' + proc_id + '?interval=' + interval, function(data) {
+        d3.json('/container/'+container+'/cpu/' + proc_id + '?interval=' + interval).header('Authorization', 'token ' + token).get( function(data) {
             $("#mychart_cpu_details").html("");
             //cpu0 = get_cpu_data(data, '0');
             cpu_data = get_per_cpu(data, proc_id);
@@ -346,7 +350,7 @@
 
 
     function load_cpu(container){
-        d3.json('/container/'+container+'/cpu?interval=' + interval, function(data) {
+        d3.json('/container/'+container+'/cpu?interval=' + interval).header('Authorization', 'token ' + token).get(function(data) {
             $("#mychart_cpu0").html("");
             cpu0 = get_cpu_all(data);
             $("#cpu_loading").hide();
@@ -372,7 +376,7 @@
     }
 
     function load_mem(container){
-        d3.json('/container/'+container+'/mem?interval=' + interval, function(data) {
+        d3.json('/container/'+container+'/mem?interval=' + interval).header('Authorization', 'token ' + token).get(function(data) {
             $("#mychart_mem").html("");
             $("#mem_loading").hide();
             var mem = get_mem(data);
@@ -398,7 +402,12 @@
     }
 
     function load_proc(container_id){
-        d3.json('/container/'+container_id+'/proc', function(data) {
+        $("#msg").html("");
+        d3.json('/container/'+container_id+'/proc').header('Authorization', 'token ' + token).get(function(data) {
+            if(data == undefined){
+                $("#msg").html("<span class=\"alert alert-danger\">Error: cannot get data</span>");
+                return;
+            }
             var procs = get_procs(data['data']);
             load_io(container_id);
             top_procs = load_cpu(container_id);
@@ -461,7 +470,10 @@
     return results[1] || 0;
 }
 
+
+    var token = 'fake';
     $(document).ready(function(){
+        token = $.urlParam('token');
         load_proc($.urlParam('container'),'s');
     });
 

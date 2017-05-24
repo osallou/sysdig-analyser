@@ -2,3 +2,9 @@ cassandra:
     hosts:
         - '127.0.0.1'
     cluster: 'sysdig'
+
+auth:
+    # Expect a JWT token in authorization header,
+    # check that container id in token match requested container
+    enable: true
+    secret: 'mytoken'

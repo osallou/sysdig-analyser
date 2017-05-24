@@ -9,6 +9,7 @@ import datetime
 import time
 import yaml
 from bson import json_util
+import jwt
 
 from cassandra.cluster import Cluster
 
@@ -34,6 +35,21 @@ cluster = Cluster(cassandra_hosts)
 session = cluster.connect(cassandra_cluster)
 
 top_n = 10
+
+
+def check_auth(container_id):
+    if not config['auth']['enable']:
+        return True
+    # print(str(request.headers))
+    if 'Authorization' not in request.headers:
+        return False
+    (bearer, token) = request.headers['Authorization'].split(' ')
+    if bearer != 'token':
+        return False
+    data = jwt.decode(token, config['auth']['secret'], audience='urn:cb/stat')
+    if data and 'container' in data and data['container'] == container_id:
+        return True
+    return False
 
 def __cassandra_update_procs(event):
         '''
@@ -248,6 +264,9 @@ app = Flask(__name__)
 
 @app.route("/container/<cid>/cpu/<proc_id>")
 def container_cpu(cid, proc_id):
+    res = check_auth(cid)
+    if not res:
+        return "not authorized", 401
     interval = request.args.get('interval')
     if interval is None:
         interval = 's'
@@ -255,6 +274,9 @@ def container_cpu(cid, proc_id):
 
 @app.route("/container/<cid>/cpu")
 def container_cpus(cid):
+    res = check_auth(cid)
+    if not res:
+        return "not authorized", 401
     interval = request.args.get('interval')
     if interval is None:
         interval = 's'
@@ -267,10 +289,16 @@ def container_cpus(cid):
 
 @app.route("/container/<cid>/proc")
 def container_procs(cid):
+    res = check_auth(cid)
+    if not res:
+        return "not authorized", 401
     return jsonify(__cassandra_select_procs(cid))
 
 @app.route("/container/<cid>/mem")
 def container_mem(cid):
+    res = check_auth(cid)
+    if not res:
+        return "not authorized", 401
     interval = request.args.get('interval')
     if interval is None:
         interval = 's'
@@ -283,6 +311,9 @@ def container_mem(cid):
 
 @app.route("/container/<cid>/io")
 def container_io(cid):
+    res = check_auth(cid)
+    if not res:
+        return "not authorized", 401
     return jsonify(__cassandra_select_io(cid))
 
 @app.route("/event", methods=['POST'])
