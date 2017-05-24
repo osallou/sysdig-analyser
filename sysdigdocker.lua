@@ -49,9 +49,10 @@ fdkeys = {}
 grevents = 0
 fdevents = 0
 -- print(package.path)
+-- print(package.cpath)
 -- TODO set this via LUA_PATH env variable
-package.path = package.path .. ";/usr/share/lua/5.1/?.lua"
-package.cpath = package.cpath .. ";/usr/lib/x86_64-linux-gnu/lua/5.1/?.so"
+-- package.path = package.path .. ";/usr/share/lua/5.1/?.lua"
+-- package.cpath = package.cpath .. ";/usr/lib/x86_64-linux-gnu/lua/5.1/?.so"
 local print_container = false
 local http = require("socket.http")
 local ltn12 = require("ltn12")

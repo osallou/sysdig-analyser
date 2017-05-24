@@ -97,12 +97,14 @@ then
 
 custom lua script (sysdigdocker.lua to add to chisels) run
 
-    sysdig -pc -c sysdigdocker -j
+    sysdig -pc -c sysdigdocker http://x.y.z/event -j
 
 
-TODO send http, need lua-socket lua module and define lua path  (test LUA_PATH env variable?)
-TODO add configuration for remote web server url
-will send toysdig_web
+Need lua-socket lua module and define lua path:
+
+    export LUA_PATH="/usr/share/lua/5.1/?.lua"
+    export LUA_CPATH="/usr/lib/x86_64-linux-gnu/lua/5.1/?.so"
+
 
 
 sysdig_web: add configuration file for cassandra cluster conn info
