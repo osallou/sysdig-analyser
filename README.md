@@ -5,13 +5,11 @@ this work is in progress and should not be used as is.
 program reads sysdig scap output files and calculate cpu usage, fd accesses etc.. for a container.
 result is inserted in cassandra.
 
-# status
 
-io access and mem cassandra insertion looks fine
-cpu usage is approximate, can go over 100% as cpu usage per second is calculated and inserted at the end of the event.
-So event can overlap the next second. This gives overview a good overview of usage and a correct mean value on several seconds.
 
-insertion is based on per second aggregation, then other process could aggregate per 10s/1h/1d or like for graph and access, old  per second data would be deleted
+# requirements
+
+python: click, cassandra-driver, mongo, progressbar, flask, gunicorn, PyYAML
 
 # To execute sysdig
 

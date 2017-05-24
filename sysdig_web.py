@@ -7,14 +7,31 @@ import logging
 import sys
 import datetime
 import time
-
+import yaml
 from bson import json_util
 
 from cassandra.cluster import Cluster
 
+config_file = 'config.yml'
+if 'BC_CONFIG' in os.environ:
+        config_file = os.environ['BC_CONFIG']
 
-cluster = Cluster()
-session = cluster.connect('sysdig')
+config = {}
+if os.path.exists(config_file):
+    with open(config_file, 'r') as ymlfile:
+        config = yaml.load(ymlfile)
+
+cassandra_hosts = ['127.0.0.1']
+cassandra_cluster = 'sysdig'
+if 'cassandra' in config:
+    if 'hosts' in config['cassandra']:
+        cassandra_hosts = config['cassandra']['hosts']
+    if 'cluster' in config['cassandra']:
+        cassandra_cluster = config['cassandra']['cluster']
+
+
+cluster = Cluster(cassandra_hosts)
+session = cluster.connect(cassandra_cluster)
 
 top_n = 10
 
