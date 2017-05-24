@@ -93,6 +93,8 @@ then
             CREATE TABLE mem_per_h (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
             CREATE TABLE mem_per_d (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
 
+
+            CREATE table retention(id int, ts timestamp, PRIMARY KEY(id))
 # Dev
 
 custom lua script (sysdigdocker.lua to add to chisels) run

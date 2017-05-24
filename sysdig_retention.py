@@ -6,12 +6,42 @@ import uuid
 import re
 import copy
 import datetime
+import time
 
 from bson import json_util
 
 from cassandra.cluster import Cluster
 from progressbar import Percentage, ProgressBar, Bar
 import click
+
+def __cassandra_update_retention(session, ts, retention):
+    retention_type = 0
+    if retention == 'm':
+        retention_type = 0
+    elif retention == 'h':
+        retention_type = 1
+    elif retention == 'd':
+        retention_type = 2
+    session.execute(
+        """
+        UPDATE retention
+        SET ts =  %s
+        WHERE id=%s
+        """,
+        (ts, retention_type)
+    )
+
+def __cassandra_select_retention(session, retention):
+    retention_type = 0
+    if retention == 'm':
+        retention_type = 0
+    elif retention == 'h':
+        retention_type = 1
+    elif retention == 'd':
+        retention_type = 2
+    rows = session.execute('SELECT * from retention where id=' + str(retention_type))
+    return rows
+
 
 
 def __cassandra_update_mem(session, retention, event):
@@ -71,7 +101,7 @@ def __cassandra_query_containers(session):
     return rows
 
 def __cassandra_query_cpu(session, container, retention):
-    logging.warn("DEBUG query: SELECT * FROM cpu WHERE container='"+container+"'")
+    # logging.warn("DEBUG query: SELECT * FROM cpu WHERE container='"+container+"'")
     table = 'cpu'
     if retention == 'h':
         table = 'cpu_per_m'
@@ -83,7 +113,7 @@ def __cassandra_query_cpu(session, container, retention):
     return rows
 
 def __cassandra_query_mem(session, container, retention):
-    logging.warn("DEBUG query: SELECT * FROM mem WHERE container='"+container+"'")
+    # logging.warn("DEBUG query: SELECT * FROM mem WHERE container='"+container+"'")
     table = 'mem'
     if retention == 'h':
         table = 'mem_per_m'
@@ -96,7 +126,7 @@ def __cassandra_query_mem(session, container, retention):
 
 
 def __cassandra_query_cpu_all(session, container, retention):
-    logging.warn("DEBUG query: SELECT * FROM cpu WHERE container='"+container+"'")
+    # logging.warn("DEBUG query: SELECT * FROM cpu WHERE container='"+container+"'")
     table_all = 'cpu_all'
     if retention == 'h':
         table_all = 'cpu_all_per_m'
@@ -276,23 +306,54 @@ def retain(retention, host, cluster):
         logging.error("Cassandra connection error: " + str(e))
         sys.exit(1)
     containers = __cassandra_query_containers(session)
-    (retention_seconds,retention_interval ) = __get_retention_interval(retention)
+    (retention_seconds, retention_interval) = __get_retention_interval(retention)
+    rows = __cassandra_select_retention(session, retention)
     last_ts = None
+    if rows:
+        last_ts = rows[0].ts
+    now = datetime.datetime.now()
+    up_to = now - datetime.timedelta(seconds=retention_interval)
+    # up_to_ts = int(time.mktime(up_to.timetuple())) * 1000
+    if last_ts is not None and up_to <= last_ts:
+        return
+
     data_to_remove = {}
+    # TODO keeps rows only > last_ts
     for container in containers:
         rows = __cassandra_query_cpu(session, container.container, retention)
-        if rows:
-            sorted_rows = sorted(rows, key=lambda x: x.ts)
+        filtered_rows = []
+        if last_ts is None:
+            filtered_rows = rows
+        else:
+            for row in rows:
+                if row.ts > last_ts and row.ts <= up_to:
+                    filtered_rows.append(row)
+        if filtered_rows:
+            sorted_rows = sorted(filtered_rows, key=lambda x: x.ts)
             __cassandra_compute_cpu(session, sorted_rows, retention=retention, cpu_all=False)
         rows = __cassandra_query_cpu_all(session, container.container, retention)
-        if rows:
-            sorted_rows = sorted(rows, key=lambda x: x.ts)
+        filtered_rows = []
+        if last_ts is None:
+            filtered_rows = rows
+        else:
+            for row in rows:
+                if row.ts > last_ts and row.ts <= up_to:
+                    filtered_rows.append(row)
+        if filtered_rows:
+            sorted_rows = sorted(filtered_rows, key=lambda x: x.ts)
             __cassandra_compute_cpu(session, sorted_rows, retention=retention, cpu_all=True)
         rows = __cassandra_query_mem(session, container.container, retention)
-        if rows:
-            sorted_rows = sorted(rows, key=lambda x: x.ts)
+        filtered_rows = []
+        if last_ts is None:
+            filtered_rows = rows
+        else:
+            for row in rows:
+                if row.ts > last_ts and row.ts <= up_to:
+                    filtered_rows.append(row)
+        if filtered_rows:
+            sorted_rows = sorted(filtered_rows, key=lambda x: x.ts)
             __cassandra_compute_mem(session, sorted_rows, retention=retention)
-
+    __cassandra_update_retention(session, up_to, retention)
 
 @run.command()
 @click.option('--retention', default='m', help='retention m(minutes), h(hours), d(days)')
