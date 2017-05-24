@@ -60,7 +60,7 @@ then
     rm -rf ..path_to/prometheus-multiproc
     mkdir -p ..path_to/prometheus-multiproc
     export prometheus_multiproc_dir=..path_to/prometheus-multiproc
-     gunicorn --bind 0.0.0.0 sysdig_web:app
+    gunicorn -c ../path_to/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
 
 => http://localhost:5000/static/index.html?container=262b281ffa9d
 
