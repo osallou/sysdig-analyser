@@ -81,7 +81,6 @@ function send_data(stable, ts_s, ts_ns, timedelta, viz_info, evt_type)
 		local res = {ts = sysdig.make_ts(ts_s, ts_ns), data = jdata, evt_type=evt_type, jinfo=jinfo}
 			
 		local str = json.encode(res)
-                print("send to " .. remote_server)
 		http.request{
                     -- url = "http://131.254.17.40:8000/event",
                     url = remote_server,
@@ -149,7 +148,8 @@ function on_init()
 	is_io_read = chisel.request_field("evt.is_io_read")
 	is_io_write = chisel.request_field("evt.is_io_write")
 	
-	chisel.set_filter("evt.type=procinfo or (fd.type=file and evt.is_io=true)")
+	-- chisel.set_filter("evt.type=procinfo or (fd.type=file and evt.is_io=true)")
+	chisel.set_filter("evt.type=procinfo or evt.is_io=true")
 
 	return true
 end
@@ -181,11 +181,6 @@ function on_event()
 	 	 return true
         end
 
-        local yyy = evt.field(ffn)
-        if yyy ~= nil then
-                print("??? " .. yyy)
-        end
-
         local nokey = false
 	for i, fld in ipairs(fkeys) do
 		kv = evt.field(fld)
@@ -200,8 +195,7 @@ function on_event()
 			key = key .. "\001\001" .. evt.field(fld)
 		end
 	end
-	-- exename = evt.field(fexe)
-        -- if evt.get_type() == 'procinfo' then
+
 	if nokey == false then
 	    local cpu = evt.field(fcpu)
 	    if cpu == nil then
