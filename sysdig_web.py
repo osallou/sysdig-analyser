@@ -18,6 +18,99 @@ session = cluster.connect('sysdig')
 
 top_n = 10
 
+def __cassandra_update_procs(event):
+        '''
+        Record process info
+        '''
+        if not event:
+            return
+        if 'is_root' not in event:
+            event['is_root'] = 0
+
+        session.execute(
+        """
+        UPDATE proc
+        SET parent_id = %s,
+            proc_name = %s,
+            exe=%s,
+            args=%s,
+            is_root=%s
+        WHERE proc_id=%s and container=%s
+        """,
+        (event['parent_id'], event['proc_name'], event['exe'], event['args'],  event['is_root'], event['proc'], event['container'])
+        )
+
+def __cassandra_update_io(event):
+        session.execute(
+        """
+        UPDATE io
+        SET io_in = io_in + %s,
+            io_out = io_out + %s
+        WHERE ts=%s AND proc_id=%s AND file_name=%s AND container=%s
+        """,
+        (event['in'], event['out'], event['start'], event['proc'], event['name'], event['container'])
+        )
+        session.execute(
+        """
+        UPDATE io_all
+        SET io_in = io_in + %s,
+            io_out = io_out + %s
+        WHERE proc_id=%s AND file_name=%s AND container=%s
+        """,
+        (event['in'], event['out'], event['proc'], event['name'], event['container'])
+        )
+
+def __cassandra_update_per_cpu(event):
+        if not event:
+            return
+        session.execute(
+        """
+        UPDATE cpu
+        SET duration = duration + %s
+        WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
+        """,
+        (event['duration'], event['start'], int(event['proc']), event['cpu'], event['container'])
+        )
+
+def __cassandra_update_cpu_all(event):
+        if not event:
+            return
+        session.execute(
+        """
+        UPDATE cpu_all
+        SET duration = duration + %s
+        WHERE ts=%s AND proc_id=%s and container=%s
+        """,
+        (event['duration'], event['start'], int(event['proc']), event['container'])
+        )
+        session.execute(
+        """
+        UPDATE proc_cpu
+        SET cpu = cpu + %s
+        WHERE proc_id=%s and container=%s
+        """,
+        (event['duration'], int(event['proc']), event['container'])
+        )
+
+def __cassandra_update_cpu(event):
+        __cassandra_update_per_cpu(event)
+        __cassandra_update_cpu_all(event)
+
+def __cassandra_update_mem(event):
+        if not event:
+            return
+        session.execute(
+        """
+        UPDATE mem
+        SET vm_size = %s,
+            vm_rss = %s,
+            vm_swap = %s
+        WHERE ts=%s AND proc_id=%s AND container=%s
+        """,
+        (event['vm_size'], event['vm_rss'], event['vm_swap'], event['start'], event['proc'], event['container'])
+        )
+
+
 
 def __cassandra_select_procs(container):
     result = {'data': []}
@@ -28,7 +121,8 @@ def __cassandra_select_procs(container):
             'exe': row.exe,
             'args': row.args,
             'name': row.proc_name,
-            'parent': row.parent_id
+            'parent': row.parent_id,
+            'is_root': row.is_root
         })
     return result
 
@@ -183,5 +277,55 @@ def container_mem(cid):
 def container_io(cid):
     return jsonify(__cassandra_select_io(cid))
 
+@app.route("/event", methods=['POST'])
+def get_event():
+    # print(str(request.data))
+    content = request.get_json(silent=True)
+    if content['evt_type'] == 'fd':
+        for data in content['data']:
+            # event['in'], event['out'], event['proc'], event['name'], event['container']
+            event = {
+                'proc': int(data[0]),
+                'container': data[2],
+                'name': data[3],
+                'in': 0,
+                'out': 0,
+                'start':  long(content['ts'])/1000000
+            }
+            if data[4] == 'in':
+                event['in'] = data[5]
+            else:
+                event['out'] = data[5]
+            __cassandra_update_io(event)
+        pass
+    elif content['evt_type'] == 'cpu':
+        for data in content['data']:
+            is_root = 0
+            if int(data[3]) == 1:
+                is_root = 1
+            event = {
+                'cpu': int(data[0]),
+                'proc_name': data[1],
+                'proc': int(data[2]),
+                'vm_size': int(data[4]),
+                'vm_rss': 0,
+                'vm_swap': 0,
+                'container': data[5],
+                'exe': data[6],
+                'args': data[7],
+                'parent_id': int(data[8]),
+                'duration': data[9],
+                'start':  long(content['ts'])/1000000,
+                'is_root': is_root
+            }
+            __cassandra_update_procs(event)
+            __cassandra_update_cpu(event)
+            __cassandra_update_mem(event)
+        #(event['duration'], event['start'], int(event['proc']), event['cpu'], event['container'])
+        # (event['vm_size'], event['vm_rss'], event['vm_swap'], event['start'], event['proc'], event['container'])
+        # (event['parent_id'], event['proc_name'], event['exe'], event['args'], event['proc_id'], event['container'])
+    # print(json.dumps(content))
+    return "ok"
+
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0")

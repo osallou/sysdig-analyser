@@ -97,7 +97,7 @@
 
         <div class="row" id="memory_tab">
             <div class="panel panel-primary">
-                <div class="panel-heading">Top Memory <button id="mem_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
+                <div class="panel-heading">Top Memory (Kb)<button id="mem_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
                 <div class="panel-body">
                         <div class="row">
                             <div id="mychart_mem"></div>
@@ -244,8 +244,12 @@
         var proc_info = "";
         var result = {'nodes': [], 'edges': []}
         treenode = {}
+        var parent = 1;
         for(var i=0;i<data.length;i++){
             var dataelt = data[i];
+            if(dataelt['is_root'] == 1) {
+                parent = dataelt['id']
+            }
             proc_info += "<tr><td>" + dataelt['id']+ "</td><td>" + dataelt['exe'] + "</td><td>" + dataelt['args'] + "</td></tr>";
             var dataelt = data[i];
             proc_list[dataelt['id']] = dataelt['name'];
@@ -255,14 +259,19 @@
             treenode[dataelt['parent']].push({'id': dataelt['id'], 'name': dataelt['name']});
         }
 
-        var root = treenode[1];
-        result['nodes'].push({'id': 1, 'label': proc_list[1]+"(1)"});
+        var root = treenode[parent];
+        if(root == undefined) {
+            $("#proc_info").append(proc_info);
+            $("#proc_table").DataTable();
+            return result;
+        }
+        result['nodes'].push({'id': parent, 'label': proc_list[parent]+"(" + parent + ")"});
         for(var i=0;i<root.length;i++){
             var child = root[i];
             result['nodes'].push({'id':  child['id'], 'label':  proc_list[child['id']]+"("+ child['id']+")"});
-            result['edges'].push({'from': 1, 'to': child['id'], arrows:'to'});
+            result['edges'].push({'from': parent, 'to': child['id'], arrows:'to'});
             var childchild = treenode[child['id']];
-            if(childchild.length<15){
+            if(childchild != undefined && childchild.length<15){
                 for(var j=0;j<childchild.length;j++){
                     var subchild = childchild[j];
                     result['nodes'].push({'id':  subchild['id'], 'label':  proc_list[subchild['id']]+"("+ subchild['id']+")"});
@@ -270,7 +279,7 @@
                 }
             }
             else{
-                console.log("Proc network: too many sub processes: "+childchild.length)
+                //console.log("Proc network: too many sub processes: "+childchild.length)
             }
             /*
             for(var j=0;j<childs.length;j++){

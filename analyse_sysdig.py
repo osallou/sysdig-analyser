@@ -83,13 +83,16 @@ class CassandraMemHandler(CassandraHandler):
         if self.last_time is None:
             self.last_time =  event['start'] // 1000000000 * 1000
         if self.last_time is None or self.last_time ==  event['start'] // 1000000000 * 1000:
+            container_ref = None
             if event['container'] not in self.events:
-                self.events[event['container']] = {}
-            if event['proc'] not in self.events[event['container']]:
-                self.events[event['container']][event['proc']] = {'vm_size': 0, 'vm_rss': 0, 'vm_swap': 0}
-            self.events[event['container']][event['proc']]['vm_size'] = event['vm_size']
-            self.events[event['container']][event['proc']]['vm_rss'] = event['vm_rss']
-            self.events[event['container']][event['proc']]['vm_swap'] = event['vm_swap']
+                container_ref = self.events[event['container']] = {}
+            else:
+                container_ref = self.events[event['container']]
+            if event['proc'] not in container_ref:
+                container_ref[event['proc']] = {'vm_size': 0, 'vm_rss': 0, 'vm_swap': 0}
+            container_ref[event['proc']]['vm_size'] = event['vm_size']
+            container_ref[event['proc']]['vm_rss'] = event['vm_rss']
+            container_ref[event['proc']]['vm_swap'] = event['vm_swap']
         else:
             self.flush()
             self.last_time =  event['start'] // 1000000000 * 1000
@@ -164,13 +167,16 @@ class CassandraCpuHandler(CassandraHandler):
         if self.last_time is None:
             self.last_time =  event['start'] // 1000000000 * 1000
         if self.last_time is None or self.last_time ==  event['start'] // 1000000000 * 1000:
+            container_ref = None
             if event['container'] not in self.events:
-                self.events[event['container']] = {}
-            if event['cpu'] not in self.events[event['container']]:
-                self.events[event['container']][event['cpu']] = {}
+                container_ref = self.events[event['container']] = {}
+            else:
+                container_ref = self.events[event['container']]
+            if event['cpu'] not in container_ref:
+                container_ref[event['cpu']] = {}
             if event['proc'] not in self.events[event['container']][event['cpu']]:
-                self.events[event['container']][event['cpu']][event['proc']] = {'duration': 0}
-            self.events[event['container']][event['cpu']][event['proc']]['duration'] += event['duration']
+                container_ref[event['cpu']][event['proc']] = {'duration': 0}
+            container_ref[event['cpu']][event['proc']]['duration'] += event['duration']
         else:
             self.flush()
             self.last_time =  event['start'] // 1000000000 * 1000
@@ -205,12 +211,13 @@ class CassandraIoHandler(CassandraHandler):
         if self.last_time is None or self.last_time ==  event['start'] // 1000000000 * 1000:
             if event['container'] not in self.events:
                 self.events[event['container']] = {}
-            if event['proc'] not in self.events[event['container']]:
-                self.events[event['container']][event['proc']] = {}
-            if event['name'] not in self.events[event['container']][event['proc']]:
-                self.events[event['container']][event['proc']][event['name']] = {'in': 0, 'out': 0}
-            self.events[event['container']][event['proc']][event['name']]['in'] += event['in']
-            self.events[event['container']][event['proc']][event['name']]['out'] += event['out']
+            container_ref = self.events[event['container']]
+            if event['proc'] not in container_ref:
+                container_ref[event['proc']] = {}
+            if event['name'] not in container_ref[event['proc']]:
+                container_ref[event['proc']][event['name']] = {'in': 0, 'out': 0}
+            container_ref[event['proc']][event['name']]['in'] += event['in']
+            container_ref[event['proc']][event['name']]['out'] += event['out']
         else:
             self.flush()
             self.last_time =  event['start'] // 1000000000 * 1000
@@ -270,7 +277,7 @@ class CassandraProcHandler(CassandraHandler):
             args=%s
         WHERE proc_id=%s and container=%s
         """,
-        (event['parent_id'], event['proc_name'], event['exe'], event['args'], event['proc_id'], event['container'])
+        (event['parent_id'], event['proc_name'], event['exe'], event['args'], event['proc'], event['container'])
         )
 
     def start(self, event, child=None):
@@ -329,13 +336,55 @@ class SysDigEventManager():
     def json_event(self, line):
         self.process(line)
 
+    def time_info(self, evt_time):
+        timeinfo = evt_time.split('.', 1)
+        timestamp = int(timeinfo[0]) * 1000000000 + int(timeinfo[1])
+        return timestamp
+
+    def get_event(self, matches):
+        timestamp = self.time_info(matches[1])
+        threads = matches[6][1:][:-1].split(':', 1)
+        container_id = matches[4][1:][:-1]
+        if container_id == '<NA>':
+            container_id = None
+        container_name = matches[3]
+        if container_name == '<NA>':
+            container_name = None
+        thread_tid = threads[0]
+        if thread_tid != '<NA>':
+            thread_tid = int(thread_tid)
+        else:
+            thread_tid = 0
+        thread_vtid = threads[1]
+        if thread_vtid != '<NA>':
+            thread_vtid = int(thread_vtid)
+        else:
+            thread_vtid = 0
+
+        event = {
+            'evt.num': int(matches[0]),
+            'evt.outputtime': timestamp,
+            'evt.cpu': int(matches[2]),
+            'container.name': container_name,
+            'container.id': container_id,
+            'proc.name': matches[5],
+            'thread.tid': thread_tid,
+            'thread.vtid': thread_vtid,
+            'evt.dir': matches[7],
+            'evt.type': matches[8],
+            'evt.info': ' '.join(matches[9:])
+        }
+        return event
+
+
     def text_event(self, line, first_line=False):
         # matches = re.search('^(\d+)\s(\d+\.\d+)\s(\d+)\s([a-zA-Z0-9<>_-]+)\s\(([a-zA-Z0-9<>]+)\)\s([a-zA-Z0-9<>\/\-_:~\.]+)\s\(([a-zA-Z0-9<>]+):([a-zA-Z0-9<>]+)\)\s([<>])\s([a-zA-Z0-9<>]+)(.*)', line)
         matches = line.split(' ')
         if len(matches) >= 9:
             # timeinfo = matches.group(2).split('.')
-            timeinfo = matches[1].split('.', 1)
-            timestamp = int(timeinfo[0]) * 1000000000 + int(timeinfo[1])
+            # timeinfo = matches[1].split('.', 1)
+            # timestamp = int(timeinfo[0]) * 1000000000 + int(timeinfo[1])
+
             '''
             event = {
                 'evt.num': int(matches.group(1)),
@@ -351,40 +400,7 @@ class SysDigEventManager():
                 'evt.info': matches.group(11)
             }
             '''
-            #threads = matches[6].replace('(', '').replace(')','').split(':', num=1)
-            threads = matches[6][1:][:-1].split(':', 1)
-
-            container_id = matches[4][1:][:-1]
-            if container_id == '<NA>':
-                container_id = None
-            container_name = matches[3]
-            if container_name == '<NA>':
-                container_name = None
-            thread_tid = threads[0]
-            if thread_tid != '<NA>':
-                thread_tid = int(thread_tid)
-            else:
-                thread_tid = 0
-            thread_vtid = threads[1]
-            if thread_vtid != '<NA>':
-                thread_vtid = int(thread_vtid)
-            else:
-                thread_vtid = 0
-
-
-            event = {
-                'evt.num': int(matches[0]),
-                'evt.outputtime': timestamp,
-                'evt.cpu': int(matches[2]),
-                'container.name': container_name,
-                'container.id': container_id,
-                'proc.name': matches[5],
-                'thread.tid': thread_tid,
-                'thread.vtid': thread_vtid,
-                'evt.dir': matches[7],
-                'evt.type': matches[8],
-                'evt.info': ' '.join(matches[9:])
-            }
+            event = self.get_event(matches)
 
             if first_line:
                 begin_ts = event['evt.outputtime']
@@ -511,7 +527,7 @@ class SysDigEventManager():
                         exe = container['commands'][proc_id]['exe']
                         args = container['commands'][proc_id]['args']
                     proc_event = {
-                        'proc_id': proc_id,
+                        'proc': proc_id,
                         'proc_name': container['procs'][proc_id]['name'],
                         'parent_id': container['hierarchy'][proc_id],
                         'exe': exe,
@@ -527,11 +543,13 @@ class SysDigEventManager():
         '''
         Process a sysdig event
         '''
+        last_call_ref = self.last_call
+
         if event['proc.name'] == 'sysdig':
-            self.last_call[event['evt.cpu']] = event['evt.outputtime']
+            last_call_ref[event['evt.cpu']] = event['evt.outputtime']
             return
         if event['container.id'] in [None, 'host']:
-            self.last_call[event['evt.cpu']] = event['evt.outputtime']
+            last_call_ref[event['evt.cpu']] = event['evt.outputtime']
             return
         # logging.debug(str(event))
 
@@ -546,8 +564,9 @@ class SysDigEventManager():
             else:
                 event['container.name'] = event['container.id']
 
+        containers_ref = None
         if event['container.name'] not in self.containers:
-            self.containers[event['container.name']] = {
+            containers_ref = self.containers[event['container.name']] = {
                 'hierarchy': {},
                 'procs': {},
                 'commands': {},
@@ -559,11 +578,13 @@ class SysDigEventManager():
                 'last_cpus': {},
                 'pids': {}
             }
+        else:
+            containers_ref = self.containers[event['container.name']]
 
-        self.containers[event['container.name']]['pids'][event['thread.tid']] = event['thread.vtid']
+        containers_ref['pids'][event['thread.tid']] = event['thread.vtid']
 
         if event['thread.vtid'] == 1 and 1 not in self.containers[event['container.name']]['hierarchy']:
-            self.containers[event['container.name']]['hierarchy'][1] = None
+            containers_ref['hierarchy'][1] = None
 
         is_clone = False
         if event['evt.type'] == 'clone':
@@ -571,32 +592,35 @@ class SysDigEventManager():
             parent = event['thread.vtid']
             if child > 0:
                 # TODO, if different, record?
-                self.containers[event['container.name']]['hierarchy'][child] = parent
+                containers_ref['hierarchy'][child] = parent
                 # __cassandra_proc_start(event, child=child)
                 self.cph.start(event, child=child)
 
 
-        if event['evt.cpu'] not in self.containers[event['container.name']]['cpus']:
-            self.containers[event['container.name']]['cpus'][event['evt.cpu']] = {}
+        if event['evt.cpu'] not in containers_ref['cpus']:
+            containers_ref['cpus'][event['evt.cpu']] = {}
+
+        containers_ref_cpu = containers_ref['cpus'][event['evt.cpu']]
 
         new_thread  = False
-        self.containers[event['container.name']]['procs'][utid] = {'name': event['proc.name']}
+        containers_ref_proc = containers_ref['procs'][utid] = {'name': event['proc.name']}
 
         if event['evt.type'] == 'execve':
-            self.containers[event['container.name']]['procs'][utid]['start'] = event['evt.outputtime']
+            containers_ref_proc['start'] = event['evt.outputtime']
             # __cassandra_proc_start(event)
             self.cph.start(event)
 
 
 
         if event['evt.type'] == 'procexit':
-            self.containers[event['container.name']]['procs'][utid]['end'] = event['evt.outputtime']
+            containers_ref_proc['end'] = event['evt.outputtime']
             # __cassandra_proc_end(event)
             self.cph.end(event)
 
 
-        if utid not in self.containers[event['container.name']]['cpus'][event['evt.cpu']]:
-            self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid] = {
+        containers_ref_cpu_utid = None
+        if utid not in containers_ref_cpu:
+            containers_ref_cpu_utid = containers_ref_cpu[utid] = {
                 'proc_name': event['proc.name'],
                 'usage': [],
                 'last_cpu': None,
@@ -606,6 +630,9 @@ class SysDigEventManager():
                 'cpu_time': 0
             }
             new_thread = True
+        else:
+            containers_ref_cpu_utid = containers_ref_cpu[utid]
+
         if event["evt.type"] == "execve":
             # Execute a process, takes proc id
             # TODO could record event with exe/args now....
@@ -617,17 +644,17 @@ class SysDigEventManager():
             #     ..[utid] = new exe and args
             (exe, args) = self.__exec_info(event['evt.info'])
             if exe:
-                self.containers[event['container.name']]['commands'][utid]= {
+                containers_ref['commands'][utid]= {
                     'exe': exe,
                     'args': args
                 }
             #logging.info("StartEvent:"+str(utid)+':'+str(event['evt.num']))
-            self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
+            containers_ref_cpu_utid['proc_name'] = event['proc.name']  # possible fork, keeping same vtid
             # TODO if different, record?
-            self.containers[event['container.name']]['procs'][utid]['name'] = event['proc.name']
+            containers_ref['procs'][utid]['name'] = event['proc.name']
 
         if 1 == 1:
-            self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['first'] = False
+            containers_ref_cpu_utid['first'] = False
             vm_size = 0
             vm_rss = 0
             vm_swap = 0
@@ -649,9 +676,9 @@ class SysDigEventManager():
 
             (fd, name) = self.__fd_info(event['evt.info'])
             if fd and name:
-                if fd not in self.containers[event['container.name']]['fd']:
-                    self.containers[event['container.name']]['fd'][fd] = {}
-                self.containers[event['container.name']]['fd'][fd][event['proc.name']] = name
+                if fd not in containers_ref['fd']:
+                    containers_ref['fd'][fd] = {}
+                containers_ref['fd'][fd][event['proc.name']] = name
                 prev_io = {
                     'start': event['evt.outputtime'],
                     # 'start_date': datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000),
@@ -672,17 +699,17 @@ class SysDigEventManager():
                 name = None
                 # logging.debug('#FD: ' + str(fd))
                 # logging.debug(str(self.containers[event['container.name']]['fd']))
-                if fd in self.containers[event['container.name']]['fd'] and event['proc.name'] in self.containers[event['container.name']]['fd'][fd]:
+                if fd in containers_ref['fd'] and event['proc.name'] in containers_ref['fd'][fd]:
                     # logging.debug("#FD FOUND " + str(self.containers[event['container.name']]['fd'][fd][event['proc.name']]))
-                    name = self.containers[event['container.name']]['fd'][fd][event['proc.name']]
-                if fd not in self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd']:
-                    self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][fd] = {}
+                    name = containers_ref['fd'][fd][event['proc.name']]
+                if fd not in containers_ref_cpu_utid['fd']:
+                    containers_ref_cpu_utid['fd'][fd] = {}
                 if not name:
                     name = 'fd_unknown'
                 if name:
-                    if name not in self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][fd]:
-                        self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][fd][name] =0
-                    self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][fd][name] += length
+                    if name not in containers_ref_cpu_utid['fd'][fd]:
+                        containers_ref_cpu_utid['fd'][fd][name] =0
+                    containers_ref_cpu_utid['fd'][fd][name] += length
                     io_event = {
                         'start': event['evt.outputtime'],
                         # 'start_date': datetime.datetime.fromtimestamp(event['evt.outputtime'] // 1000000000),
@@ -703,27 +730,26 @@ class SysDigEventManager():
                     # __cassandra_io(io_event)
                     self.cih.record(io_event)
 
-                if name not in self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd']:
-                    self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][name] = length
+                if name not in containers_ref_cpu_utid['fd']:
+                    containers_ref_cpu_utid['fd'][name] = length
                 else:
-                    self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['fd'][name] += length
+                    containers_ref_cpu_utid['fd'][name] += length
 
             if 1 == 1:
-                if event['evt.cpu'] in self.last_call:
-                    self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = self.last_call[event['evt.cpu']]
+                if event['evt.cpu'] in last_call_ref:
+                    containers_ref_cpu_utid['last_cpu'] = last_call_ref[event['evt.cpu']]
                 else:
-                    self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = self.begin_ts
+                    containers_ref_cpu_utid['last_cpu'] = self.begin_ts
                     return
                 # logging.debug("StartEvent:"+str(utid)+':'+str(event['evt.num'])+':'+str(event['evt.cpu']))
-                (vm_size, vm_rss, vm_swap) = self.__vm_info(event['evt.info'])
+                # (vm_size, vm_rss, vm_swap) = self.__vm_info(event['evt.info'])
 
                 prev_usage = {
-                    'start': self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
+                    'start': containers_ref_cpu_utid['last_cpu'],
                     # 'start_date': datetime.datetime.fromtimestamp(self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000),
                     # 'debug_date': str(datetime.datetime.fromtimestamp(self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] // 1000000000)),
-                    'duration': event['evt.outputtime'] - self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'],
-                    'memory': (vm_size, vm_rss, vm_swap),
-                    'proc_id': utid,
+                    'duration': event['evt.outputtime'] - containers_ref_cpu_utid['last_cpu'],
+                    # 'memory': (vm_size, vm_rss, vm_swap),
                     'proc': utid,
                     'container': event['container.id'],
                     'cpu': event['evt.cpu']
@@ -731,15 +757,17 @@ class SysDigEventManager():
                 # self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['usage'].append(prev_usage)
                 # logging.debug(str(prev_usage))
                 # __cassandra_cpu(prev_usage)
-                self.cch.record(prev_usage)
+                if event['evt.type'] != 'switch':
+                    # Do not record cpu spent switching
+                    self.cch.record(prev_usage)
 
                 if (event['evt.type'] == 'switch' or event['evt.type'] == 'procexit'):
-                    self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = None
+                    containers_ref_cpu_utid['last_cpu'] = None
                     # logging.debug("ResetEvent:"+str(utid)+':'+str(event['evt.num'])+':'+str(event['evt.cpu']))
                 else:
-                    self.containers[event['container.name']]['cpus'][event['evt.cpu']][utid]['last_cpu'] = event['evt.outputtime']
+                    containers_ref_cpu_utid['last_cpu'] = event['evt.outputtime']
 
-        self.last_call[event['evt.cpu']] = event['evt.outputtime']
+        last_call_ref[event['evt.cpu']] = event['evt.outputtime']
         return
 
 
@@ -851,7 +879,7 @@ def analyse_events(name, host, cluster, use_json, use_text, stdin, progress, sim
                 exe = container['commands'][proc_id]['exe']
                 args = container['commands'][proc_id]['args']
             proc_event = {
-                'proc_id': proc_id,
+                'proc': proc_id,
                 'proc_name': container['procs'][proc_id]['name'],
                 'parent_id': container['hierarchy'][proc_id],
                 'exe': exe,

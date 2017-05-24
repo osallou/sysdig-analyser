@@ -52,14 +52,18 @@ then
 
 ## Web UI
 
-python sysdig_web.py
+
+## dev
+
+    python sysdig_web.py
+
+## prod
+
+     gunicorn --bind 0.0.0.0 sysdig_web:app
 
 => http://localhost:5000/static/index.html?container=262b281ffa9d
 
 ## cassandra
-
-
-TODO: change proc_name varchar to proc_id int except in table proc
 
             CREATE KEYSPACE <ksname>
                 WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
@@ -70,7 +74,7 @@ TODO: change proc_name varchar to proc_id int except in table proc
             CREATE TABLE mem (container varchar,vm_size bigint, vm_rss bigint, vm_swap bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
             CREATE TABLE cpu (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
             CREATE TABLE cpu_all (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-            CREATE TABLE proc (container varchar, start timestamp, end timestamp, proc_name varchar, exe varchar, args varchar, proc_id int, parent_id int, PRIMARY KEY (container, proc_id));
+            CREATE TABLE proc (container varchar, start timestamp, end timestamp, proc_name varchar, exe varchar, args varchar, proc_id int, parent_id int, is_root int, PRIMARY KEY (container, proc_id));
             CREATE TABLE proc_cpu (container varchar, cpu counter, proc_id int, PRIMARY KEY (container, proc_id));
 
 
@@ -88,3 +92,17 @@ TODO: change proc_name varchar to proc_id int except in table proc
             CREATE TABLE mem_per_m (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
             CREATE TABLE mem_per_h (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
             CREATE TABLE mem_per_d (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
+
+# Dev
+
+custom lua script (sysdigdocker.lua to add to chisels) run
+
+    sysdig -pc -c sysdigdocker -j
+
+
+TODO send http, need lua-socket lua module and define lua path  (test LUA_PATH env variable?)
+TODO add configuration for remote web server url
+will send toysdig_web
+
+
+sysdig_web: add configuration file for cassandra cluster conn info
