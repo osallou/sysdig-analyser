@@ -43,15 +43,6 @@ def __cassandra_update_procs(event):
 def __cassandra_update_io(event):
         session.execute(
         """
-        UPDATE io
-        SET io_in = io_in + %s,
-            io_out = io_out + %s
-        WHERE ts=%s AND proc_id=%s AND file_name=%s AND container=%s
-        """,
-        (event['in'], event['out'], event['start'], event['proc'], event['name'], event['container'])
-        )
-        session.execute(
-        """
         UPDATE io_all
         SET io_in = io_in + %s,
             io_out = io_out + %s
