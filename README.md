@@ -2,19 +2,53 @@
 
 this work is in progress and should not be used as is.
 
-program reads sysdig scap output files and calculate cpu usage, fd accesses etc.. for a container.
+program reads sysdig events (live) or scap output files and calculate cpu usage, fd accesses etc.. for a container.
 result is inserted in cassandra.
+The web server records live events from sysdig (with a special chisel) and display container information.
 
 # License
 
 Apache 2.0 (see https://www.apache.org/licenses/LICENSE-2.0)
 
 
-# requirements
+# Requirements
 
-    pip install click cassandra-driver mongo progressbar flask gunicorn PyYAML PyJWT prometheus_client python-consul
+    python setup.py install
 
-# To execute sysdig
+# Live recording of sysdig events
+
+## Manual
+
+Need lua-socket lua module and to define lua path:
+
+    export LUA_PATH="/usr/share/lua/5.1/?.lua"
+    export LUA_CPATH="/usr/lib/x86_64-linux-gnu/lua/5.1/?.so"
+
+Custom lua script (sysdigdocker.lua to add to chisels) run
+
+    sysdig -pc -c sysdigdocker http://x.y.z/event -j (x.y.z being the web ui address, possibly load-balanced)
+
+
+## Docker
+
+You can use Dockerfile (in docker dir to create a sysdig image containing the lua chisel with env already set up)
+
+    docker run -d --restart=always --name=sysdig --privileged=true \
+               -v ${PWD}:/mnt/sysdig \
+               --volume=/var/run/docker.sock:/host/var/run/docker.sock \
+               --volume=/dev:/host/dev \
+               --volume=/proc:/host/proc:ro \
+               --volume=/boot:/host/boot:ro \
+               --volume=/lib/modules:/host/lib/modules:ro \
+               --volume=/usr:/host/usr:ro \
+               osallou/bubble-chamber sysdig -pc -c sysdigdocker http://x.y.z/event -j
+
+x.y.z being the web ui address, possibly load-balanced
+
+
+# Using sysdig records
+
+## To execute sysdig
 
 docker run -it --rm --name=sysdig --privileged=true \
            -v ${PWD}:/mnt/sysdig \
@@ -26,23 +60,14 @@ docker run -it --rm --name=sysdig --privileged=true \
            --volume=/usr:/host/usr:ro \
            sysdig/sysdig
 
+## Sysdig recording
+
+    sysdig -pc -w myoutput.scap
 
 
-# sysdig execution
 
-sysdig -pc -w myoutput.scap
+## Analyse saved file
 
-
-# list containers
-
-sysdig -pc -r test.scap  -j -c lscontainers
-
-
-# analyse saved file
-
-save to scap at regular interval
-
-read scap files , and export to json:
 
     sysdig -pc -j  -r test.scap > test.json
 
@@ -54,12 +79,13 @@ then
 
 # Web UI
 
+Web UI is used to display container info but also to receive live events from sysdig
 
-## dev
+## development
 
     python sysdig_web.py
 
-## prod
+## production
 
     rm -rf ..path_to/prometheus-multiproc
     mkdir -p ..path_to/prometheus-multiproc
@@ -67,7 +93,6 @@ then
     gunicorn -c ../path_to/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
 
 ## in docker
-
 
     docker build -t osallou/bubble-web .
     docker run -p 80:8000 -d -e CASSANDRA_HOST="192.168.101.131" -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
@@ -85,10 +110,12 @@ Other env vars:
 
 => http://localhost:5000/static/index.html?container=262b281ffa9d&token=XXXXXX
 
-A token is expected to give access to container data.
+If auth is enabled in config, a token is expected to give access to container data.
 A test token can be generated via test_token.py, else your proxy app should generate one before linking to app.
 
-# cassandra
+# Cassandra
+
+## Data model
 
             CREATE KEYSPACE sysdig WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
 
@@ -119,27 +146,3 @@ A test token can be generated via test_token.py, else your proxy app should gene
 
 
             CREATE table retention(id int, ts timestamp, PRIMARY KEY(id));
-# Dev
-
-custom lua script (sysdigdocker.lua to add to chisels) run
-
-    sysdig -pc -c sysdigdocker http://x.y.z/event -j
-
-
-Need lua-socket lua module and define lua path:
-
-    export LUA_PATH="/usr/share/lua/5.1/?.lua"
-    export LUA_CPATH="/usr/lib/x86_64-linux-gnu/lua/5.1/?.so"
-
-
-You can use dockerfile (in docker dir to create a sysdig image containing the lua chisel with env already set up)
-
-docker run -d --restart=always --name=sysdig --privileged=true \
-           -v ${PWD}:/mnt/sysdig \
-           --volume=/var/run/docker.sock:/host/var/run/docker.sock \
-           --volume=/dev:/host/dev \
-           --volume=/proc:/host/proc:ro \
-           --volume=/boot:/host/boot:ro \
-           --volume=/lib/modules:/host/lib/modules:ro \
-           --volume=/usr:/host/usr:ro \
-           osallou/bubble-chamber sysdig -pc -c sysdigdocker http://x.y.z/event -j
