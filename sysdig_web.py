@@ -60,6 +60,9 @@ if 'CASSANDRA_CLUSTER' in os.environ:
 if 'AUTH_SECRET' in os.environ:
     config['auth']['secret'] = os.environ['AUTH_SECRET']
 
+if 'AUTH_DISABLE' in os.environ:
+    config['auth']['enable'] = False
+
 cluster = Cluster(cassandra_hosts)
 session = cluster.connect(cassandra_cluster)
 
