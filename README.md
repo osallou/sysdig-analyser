@@ -76,6 +76,12 @@ Optionally add --link to your cassandra docker cluster:
 
     docker run -p 80:8000 -d -e CASSANDRA_HOST="mycassandra" --link mycassandra:mycassandra -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
 
+Other env vars:
+
+ * CASSANDRA_HOST
+ * CASSANDRA_CLUSTER
+ * AUTH_SECRET (secret to use)
+ * AUTH_DISABLE (disable token checks, users can access any container)
 
 => http://localhost:5000/static/index.html?container=262b281ffa9d&token=XXXXXX
 
