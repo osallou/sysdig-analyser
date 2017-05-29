@@ -27,6 +27,7 @@ docker run -it --rm --name=sysdig --privileged=true \
            sysdig/sysdig
 
 
+
 # sysdig execution
 
 sysdig -pc -w myoutput.scap
@@ -37,7 +38,7 @@ sysdig -pc -w myoutput.scap
 sysdig -pc -r test.scap  -j -c lscontainers
 
 
-# what should be done
+# analyse saved file
 
 save to scap at regular interval
 
@@ -51,7 +52,7 @@ then
     python analysis_sysdig test.json
 
 
-## Web UI
+# Web UI
 
 
 ## dev
@@ -67,7 +68,7 @@ then
 
 => http://localhost:5000/static/index.html?container=262b281ffa9d
 
-## cassandra
+# cassandra
 
             CREATE KEYSPACE <ksname>
                 WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
@@ -112,5 +113,4 @@ Need lua-socket lua module and define lua path:
     export LUA_CPATH="/usr/lib/x86_64-linux-gnu/lua/5.1/?.so"
 
 
-
-sysdig_web: add configuration file for cassandra cluster conn info
+You can use dockerfile (in docker dir to create a sysdig image containing the lua chisel with env already set up)
