@@ -20,9 +20,9 @@ from cassandra.cluster import Cluster
 import consul
 
 FLASK_REQUEST_LATENCY = Histogram('flask_request_latency_seconds', 'Flask Request Latency',
-				['method', 'endpoint'])
+    ['method', 'endpoint'])
 FLASK_REQUEST_COUNT = Counter('flask_request_count', 'Flask Request Count',
-				['method', 'endpoint', 'http_status'])
+    ['method', 'endpoint', 'http_status'])
 
 def before_request():
     request.start_time = time.time()
@@ -76,7 +76,12 @@ def check_auth(container_id):
     (bearer, token) = request.headers['Authorization'].split(' ')
     if bearer != 'token':
         return False
-    data = jwt.decode(token, config['auth']['secret'], audience='urn:cb/stat')
+    data = None
+    try:
+        data = jwt.decode(token, config['auth']['secret'], audience='urn:cb/stat')
+    except Exception:
+        return False
+
     if data and 'container' in data and data['container'] == container_id:
         return True
     return False
