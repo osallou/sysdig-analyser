@@ -466,13 +466,24 @@
     $.urlParam = function (name) {
     var results = new RegExp('[\?&]' + name + '=([^&#]*)')
                       .exec(window.location.href);
-
+    if(results == undefined) {
+        return 0;
+    }
     return results[1] || 0;
 }
 
 
     var token = 'fake';
     $(document).ready(function(){
+        if($.urlParam('token') == 0 || $.urlParam('container') == 0) {
+            $("#msg").html("<span class=\"alert alert-danger\">Error: missing query parameter container or token</span>");
+            $("#io_loading").hide();
+            $("#mem_loading").hide();
+            $("#cpu_loading").hide();
+            $("#proc_loading").hide();            
+            return;
+        }
+
         token = $.urlParam('token');
         load_proc($.urlParam('container'),'s');
     });
