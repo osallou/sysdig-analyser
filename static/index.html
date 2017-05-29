@@ -475,12 +475,12 @@
 
     var token = 'fake';
     $(document).ready(function(){
-        if($.urlParam('token') == 0 || $.urlParam('container') == 0) {
-            $("#msg").html("<span class=\"alert alert-danger\">Error: missing query parameter container or token</span>");
+        if($.urlParam('container') == 0) {
+            $("#msg").html("<span class=\"alert alert-danger\">Error: missing query parameter: container</span>");
             $("#io_loading").hide();
             $("#mem_loading").hide();
             $("#cpu_loading").hide();
-            $("#proc_loading").hide();            
+            $("#proc_loading").hide();
             return;
         }
 

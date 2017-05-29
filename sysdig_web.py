@@ -100,6 +100,7 @@ def __cassandra_update_procs(event):
         '''
         if not event:
             return
+        print(str(event))
         if 'is_root' not in event:
             event['is_root'] = 0
 

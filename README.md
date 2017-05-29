@@ -127,3 +127,13 @@ Need lua-socket lua module and define lua path:
 
 
 You can use dockerfile (in docker dir to create a sysdig image containing the lua chisel with env already set up)
+
+docker run -d --restart=always --name=sysdig --privileged=true \
+           -v ${PWD}:/mnt/sysdig \
+           --volume=/var/run/docker.sock:/host/var/run/docker.sock \
+           --volume=/dev:/host/dev \
+           --volume=/proc:/host/proc:ro \
+           --volume=/boot:/host/boot:ro \
+           --volume=/lib/modules:/host/lib/modules:ro \
+           --volume=/usr:/host/usr:ro \
+           osallou/bubble-chamber sysdig -pc -c sysdigdocker http://x.y.z/event -j
