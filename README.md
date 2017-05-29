@@ -5,6 +5,9 @@ this work is in progress and should not be used as is.
 program reads sysdig scap output files and calculate cpu usage, fd accesses etc.. for a container.
 result is inserted in cassandra.
 
+# License
+
+Apache 2.0 (see https://www.apache.org/licenses/LICENSE-2.0)
 
 
 # requirements
