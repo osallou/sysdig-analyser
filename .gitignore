@@ -1,1 +1,10 @@
 dist
+*.json
+*.scap
+*.tsv
+*.log
+prometheus-multiproc
+*.egg-info
+config.yml
+*.pyc
+venv
