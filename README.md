@@ -70,8 +70,7 @@ then
 
 # cassandra
 
-            CREATE KEYSPACE <ksname>
-                WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
+            CREATE KEYSPACE sysdig WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
 
             USE sysdig;
             CREATE TABLE io (container varchar, io_in counter, io_out counter, ts timestamp, proc_id int, file_name varchar, PRIMARY KEY (container, proc_id, ts, file_name));
@@ -99,7 +98,7 @@ then
             CREATE TABLE mem_per_d (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
 
 
-            CREATE table retention(id int, ts timestamp, PRIMARY KEY(id))
+            CREATE table retention(id int, ts timestamp, PRIMARY KEY(id));
 # Dev
 
 custom lua script (sysdigdocker.lua to add to chisels) run
