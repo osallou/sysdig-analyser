@@ -66,7 +66,21 @@ then
     export prometheus_multiproc_dir=..path_to/prometheus-multiproc
     gunicorn -c ../path_to/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
 
-=> http://localhost:5000/static/index.html?container=262b281ffa9d
+## in docker
+
+
+    docker build -t osallou/bubble-web .
+    docker run -p 80:8000 -d -e CASSANDRA_HOST="192.168.101.131" -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
+
+Optionally add --link to your cassandra docker cluster:
+
+    docker run -p 80:8000 -d -e CASSANDRA_HOST="mycassandra" --link mycassandra:mycassandra -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
+
+
+=> http://localhost:5000/static/index.html?container=262b281ffa9d&token=XXXXXX
+
+A token is expected to give access to container data.
+A test token can be generated via test_token.py, else your proxy app should generate one before linking to app.
 
 # cassandra
 
