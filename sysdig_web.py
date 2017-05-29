@@ -43,6 +43,7 @@ if os.path.exists(config_file):
         config = yaml.load(ymlfile)
 
 
+
 cassandra_hosts = ['127.0.0.1']
 cassandra_cluster = 'sysdig'
 if 'cassandra' in config:
@@ -51,6 +52,13 @@ if 'cassandra' in config:
     if 'cluster' in config['cassandra']:
         cassandra_cluster = config['cassandra']['cluster']
 
+if 'CASSANDRA_HOST' in os.environ:
+    cassandra_hosts = [os.environ['CASSANDRA_HOST']]
+if 'CASSANDRA_CLUSTER' in os.environ:
+    cassandra_cluster = os.environ['CASSANDRA_CLUSTER']
+
+if 'AUTH_SECRET' in os.environ:
+    config['auth']['secret'] = os.environ['AUTH_SECRET']
 
 cluster = Cluster(cassandra_hosts)
 session = cluster.connect(cassandra_cluster)
