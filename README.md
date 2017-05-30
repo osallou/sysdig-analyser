@@ -17,6 +17,20 @@ Apache 2.0 (see https://www.apache.org/licenses/LICENSE-2.0)
 
 # Live recording of sysdig events
 
+## Api keys
+
+To send events to web server, one need an API key. Script bc_api helps managing api keys
+
+    python bc_api.py create --owner me@mail.com
+    Api key EERZERZEZT  <= generated api key
+
+    python bc_api.py delete --api EERZERZEZT
+
+For help and cassandra connection info parameters:
+
+    python bc_api.py  create --help
+    python bc_api.py  delete --help
+
 ## Manual
 
 Need lua-socket lua module and to define lua path:
@@ -26,7 +40,9 @@ Need lua-socket lua module and to define lua path:
 
 Custom lua script (sysdigdocker.lua to add to chisels) run
 
-    sysdig -pc -c sysdigdocker http://x.y.z/event -j (x.y.z being the web ui address, possibly load-balanced)
+    sysdig -pc -c sysdigdocker http://x.y.z/event/api/<APIKEY> -j
+    # x.y.z being the web ui address, possibly load-balanced
+    # <APIKEY> is a valid API key
 
 
 ## Docker
@@ -41,7 +57,7 @@ You can use Dockerfile (in docker dir to create a sysdig image containing the lu
                --volume=/boot:/host/boot:ro \
                --volume=/lib/modules:/host/lib/modules:ro \
                --volume=/usr:/host/usr:ro \
-               osallou/bubble-chamber sysdig -pc -c sysdigdocker http://x.y.z/event -j
+               osallou/bubble-chamber sysdig -pc -c sysdigdocker http://x.y.z/event/api/<APIKEY> -j
 
 x.y.z being the web ui address, possibly load-balanced
 
@@ -145,4 +161,6 @@ A test token can be generated via test_token.py, else your proxy app should gene
             CREATE TABLE mem_per_d (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
 
 
-            CREATE table retention(id int, ts timestamp, PRIMARY KEY(id));
+            CREATE TABLE retention(id int, ts timestamp, PRIMARY KEY(id));
+
+            CREATE TABLE api(id varchar, owner varchar, PRIMARY KEY(id));

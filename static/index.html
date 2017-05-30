@@ -269,7 +269,9 @@
             $("#proc_table").DataTable();
             return result;
         }
-        result['nodes'].push({'id': parent, 'label': proc_list[parent]+"(" + parent + ")"});
+        //result['nodes'].push({'id': parent, 'label': proc_list[parent]+"(" + parent + ")"});
+
+        /*
         for(var i=0;i<root.length;i++){
             var child = root[i];
             result['nodes'].push({'id':  child['id'], 'label':  proc_list[child['id']]+"("+ child['id']+")"});
@@ -285,29 +287,21 @@
             else{
                 //console.log("Proc network: too many sub processes: "+childchild.length)
             }
-            /*
-            for(var j=0;j<childs.length;j++){
-                var child = childs[j];
-                console.log(child);
-                result['nodes'].push({'id':  child['id'], 'label':  child['name']+"("+ child['id']+")"});
-                result['edges'].push({'from': 1, 'to': child['id'], arrows:'to'});
-            }
-            */
-        }
-        treenode = null;
-        /*
-        for(var i=0;i<data.length;i++){
-            var dataelt = data[i];
-            proc_list[dataelt['id']] = dataelt['name'];
-            // proc_selection += "<option value=\"" + dataelt['id'] + "\">" + dataelt['name'] + "("+dataelt['id']+")" + "</option>";
-            proc_info += "<tr><td>" + dataelt['id']+ "</td><td>" + dataelt['exe'] + "</td><td>" + dataelt['args'] + "</td></tr>";
-                result['nodes'].push({'id': dataelt['id'], 'label': dataelt['name']+"("+dataelt['id']+")"});
-                if(dataelt['parent']){
-                    result['edges'].push({'from': dataelt['parent'], 'to': dataelt['id'], arrows:'to'})
-                }
+
         }
         */
-        // $("#cpu_proc").append(proc_selection);
+        //console.log(treenode);
+        for(var key in treenode) {
+            var elt = treenode[key];
+            for(var j=0;j<elt.length;j++){
+                var subchild = elt[j];
+                result['nodes'].push({'id':  subchild['id'], 'label':  proc_list[subchild['id']]+"("+ subchild['id']+")"});
+                result['edges'].push({'from': key, 'to': subchild['id'], arrows:'to'});
+            }
+        }
+
+        treenode = null;
+
         $("#proc_info").append(proc_info);
         $("#proc_table").DataTable();
         return result;
@@ -421,8 +415,23 @@
               nodes: nodes,
               edges: edges
             };
+            /*
             var options = {
                 'height': '400px'
+            };
+            */
+            var options = {
+                height: '400px'
+,                layout: {
+                    hierarchical: {
+                        direction: "UD",
+                        sortMethod: "directed"
+                    }
+                },
+                interaction: {dragNodes :false},
+                physics: {
+                    enabled: false
+                }
             };
             var network = new vis.Network(container, netdata, options);
 

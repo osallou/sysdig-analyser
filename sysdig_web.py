@@ -66,6 +66,16 @@ if 'AUTH_DISABLE' in os.environ:
 cluster = Cluster(cassandra_hosts)
 session = cluster.connect(cassandra_cluster)
 
+def __cassandra_load_api():
+    res = []
+    rows = session.execute("SELECT * FROM api");
+    for row in rows:
+        res.append(row.id)
+    return res
+
+apikeys = __cassandra_load_api()
+
+
 top_n = 10
 
 def consul_declare(config):
@@ -97,13 +107,13 @@ def check_auth(container_id):
         return True
     return False
 
+
 def __cassandra_update_procs(event):
         '''
         Record process info
         '''
         if not event:
             return
-        print(str(event))
         if 'is_root' not in event:
             event['is_root'] = 0
 
@@ -376,8 +386,10 @@ def container_io(cid):
         return "not authorized", 401
     return jsonify(__cassandra_select_io(cid))
 
-@app.route("/event", methods=['POST'])
-def get_event():
+@app.route("/event/api/<api>", methods=['POST'])
+def get_event(api):
+    if api not in apikeys:
+        return "invalid api key", 401
     # print(str(request.data))
     content = request.get_json(silent=True)
     if content['evt_type'] == 'fd':

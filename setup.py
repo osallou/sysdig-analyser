@@ -72,6 +72,7 @@ setup(
                       'python-consul'
                      ],
     scripts=[
+            'bc_api.py'
             'sysdig_web.py',
             'analyse_sysdig.py',
             'sysdig_retention.py'
