@@ -891,4 +891,5 @@ def analyse_events(name, host, cluster, use_json, use_text, stdin, progress, sim
 
 
 if __name__ == '__main__':
-    cProfile.run('analyse_events()')
+    # cProfile.run('analyse_events()')
+    analyse_events()
