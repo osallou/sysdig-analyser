@@ -72,7 +72,7 @@ setup(
                       'python-consul'
                      ],
     scripts=[
-            'bc_api.py'
+            'bc_api.py',
             'bc_web.py',
             'bc_analyse.py',
             'bc_retention.py'
