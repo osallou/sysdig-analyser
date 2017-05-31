@@ -90,7 +90,7 @@ docker run -it --rm --name=sysdig --privileged=true \
 
 then
 
-    python analysis_sysdig test.json
+    python bc_analyse.py test.json
 
 
 # Web UI
@@ -99,23 +99,23 @@ Web UI is used to display container info but also to receive live events from sy
 
 ## development
 
-    python sysdig_web.py
+    python bc_web.py
 
 ## production
 
     rm -rf ..path_to/prometheus-multiproc
     mkdir -p ..path_to/prometheus-multiproc
     export prometheus_multiproc_dir=..path_to/prometheus-multiproc
-    gunicorn -c ../path_to/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
+    gunicorn -c ../path_to/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
 
 ## in docker
 
     docker build -t osallou/bubble-web .
-    docker run -p 80:8000 -d -e CASSANDRA_HOST="192.168.101.131" -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
+    docker run -p 80:8000 -d -e CASSANDRA_HOST="192.168.101.131" -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
 
 Optionally add --link to your cassandra docker cluster:
 
-    docker run -p 80:8000 -d -e CASSANDRA_HOST="mycassandra" --link mycassandra:mycassandra -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 sysdig_web:app
+    docker run -p 80:8000 -d -e CASSANDRA_HOST="mycassandra" --link mycassandra:mycassandra -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
 
 Other env vars:
 
