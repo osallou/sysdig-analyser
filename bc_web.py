@@ -1,5 +1,6 @@
 from flask import Flask
 from flask import request
+from flask import Blueprint
 from flask.json import jsonify
 import os
 import json
@@ -42,7 +43,10 @@ if os.path.exists(config_file):
     with open(config_file, 'r') as ymlfile:
         config = yaml.load(ymlfile)
 
-
+if 'prefix' not in config['web'] or not config['web']['prefix']:
+    config['web']['prefix'] = '/'
+if 'BC_PREFIX' in os.environ and os.environ['BC_PREFIX']:
+    config['web']['prefix'] = os.environ['BC_PREFIX']
 
 cassandra_hosts = ['127.0.0.1']
 cassandra_cluster = 'sysdig'
@@ -63,6 +67,7 @@ if 'AUTH_SECRET' in os.environ:
 if 'AUTH_DISABLE' in os.environ:
     config['auth']['enable'] = False
 
+
 cluster = Cluster(cassandra_hosts)
 session = cluster.connect(cassandra_cluster)
 
@@ -74,7 +79,7 @@ def __cassandra_load_api():
     return res
 
 apikeys = __cassandra_load_api()
-
+last_check = datetime.datetime.now()
 
 top_n = 10
 
@@ -320,9 +325,14 @@ def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
 app = Flask(__name__)
 app.before_request(before_request)
 app.after_request(after_request)
+#logging.warn("Using prefix " + str(config['web']['prefix']))
+#bp = Blueprint('frontend', __name__)
+#app.register_blueprint(bp, url_prefix=config['web']['prefix'])
 
 @app.route('/ping', methods=['GET'])
 def ping():
+    logging.warn(str(app.url_map))
+
     return jsonify({'msg': 'pong'})
 
 
@@ -386,10 +396,29 @@ def container_io(cid):
         return "not authorized", 401
     return jsonify(__cassandra_select_io(cid))
 
+
+@app.route("/event", methods=['POST'])
+def get_event_auth_header():
+    api = None
+    if 'Authorization' in request.headers:
+        (bearer, api) = request.headers['Authorization'].split(' ')
+    if api is None:
+        return "Not authorized", 401
+    return get_event(api)
+
 @app.route("/event/api/<api>", methods=['POST'])
 def get_event(api):
     if api not in apikeys:
-        return "invalid api key", 401
+        # check if reload necessary
+        new_check = datetime.datetime.now()
+        # if last check > 60s
+        if last_check < new_check - datetime.timedelta(seconds=60l):
+            logging.debug("Reload api keys")
+            last_check = new_check
+            __cassandra_load_api()
+        if api not in apikeys:
+            logging.warn("InvalidApiKey:%s" % (str(api)))
+            return "invalid api key", 401
     # print(str(request.data))
     content = request.get_json(silent=True)
     if content['evt_type'] == 'fd':
@@ -432,11 +461,12 @@ def get_event(api):
             __cassandra_update_procs(event)
             __cassandra_update_cpu(event)
             __cassandra_update_mem(event)
-        #(event['duration'], event['start'], int(event['proc']), event['cpu'], event['container'])
-        # (event['vm_size'], event['vm_rss'], event['vm_swap'], event['start'], event['proc'], event['container'])
-        # (event['parent_id'], event['proc_name'], event['exe'], event['args'], event['proc_id'], event['container'])
-    # print(json.dumps(content))
+
     return "ok"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0")
+    bc_debug = False
+    if 'BC_DEBUG' in os.environ:
+        bc_debug = True
+    logging.warn(str(app.url_map))
+    app.run(host="0.0.0.0", debug=bc_debug)

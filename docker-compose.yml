@@ -1,0 +1,42 @@
+ version: '2'
+
+ services:
+    bc-rabbitmq:
+        image: rabbitmq
+        hostname: sysdig-rabbitmq
+        volumes:
+            - ${PWD}/rabbitmq:/var/lib/rabbitmq
+        environment:
+            - RABBITMQ_DEFAULT_USER=test
+            - RABBITMQ_DEFAULT_PASS=test
+
+    bc-cassandra:
+        image: cassandra
+        volumes:
+            - ${PWD}/cassandra:/var/lib/cassandra
+
+    bc-consul:
+        image: consul
+        hostname: consulnode1
+        ports:
+            - "8400:8400"
+            - "8500:8500"
+            - "8600:53"
+
+    bc-web:
+        image: osallou/bubble-web
+        environment:
+            - CASSANDRA_HOST=bc-cassandra
+            - CASSANDRA_CLUSTER=sysdig
+            - DISABLE_AUTH=1
+        ports:
+            - "8000:8000"
+        command: gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
+
+    bc-retention:
+        image: osallou/bubble-web
+        environment:
+            - CASSANDRA_HOST=bc-cassandra
+            - CASSANDRA_CLUSTER=sysdig
+            - RABBITMQ_HOST=bc-rabbitmq
+        command: python bc_retention.py listen

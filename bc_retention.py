@@ -10,11 +10,12 @@ import time
 
 from bson import json_util
 
+import pika
 from cassandra.cluster import Cluster
 from progressbar import Percentage, ProgressBar, Bar
 import click
 
-def __cassandra_update_retention(session, ts, retention):
+def __cassandra_update_container_retention(session, container, ts, retention):
     retention_type = 0
     if retention == 'm':
         retention_type = 0
@@ -26,12 +27,13 @@ def __cassandra_update_retention(session, ts, retention):
         """
         UPDATE retention
         SET ts =  %s
-        WHERE id=%s
+        WHERE id=%s and container=%s
         """,
-        (ts, retention_type)
+        (ts, retention_type, container)
     )
 
-def __cassandra_select_retention(session, retention):
+
+def __cassandra_select_container_retention(session, container, retention):
     retention_type = 0
     if retention == 'm':
         retention_type = 0
@@ -39,27 +41,7 @@ def __cassandra_select_retention(session, retention):
         retention_type = 1
     elif retention == 'd':
         retention_type = 2
-    rows = session.execute(
-        """
-        SELECT * FROM retention
-        WHERE id=%s
-        """,
-        [retention_type]
-    )
-    if rows:
-        return rows[0].ts
-    else:
-        return None
-
-def __cassandra_select_retention(session, retention):
-    retention_type = 0
-    if retention == 'm':
-        retention_type = 0
-    elif retention == 'h':
-        retention_type = 1
-    elif retention == 'd':
-        retention_type = 2
-    rows = session.execute('SELECT * from retention where id=' + str(retention_type))
+    rows = session.execute('''SELECT * from retention where container=%s and id= %s''', (container,str(retention_type)))
     return rows
 
 
@@ -363,44 +345,15 @@ def __get_retention_interval(retention):
 def run():
     pass
 
-@run.command()
-@click.option('--retention', default='m', help='retention m(minutes), h(hours), d(days)')
-@click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
-@click.option('--cluster', default='sysdig', help='cassandra cluster name')
-def retain(retention, host, cluster):
-    '''
-    Merge events in larger window
-    '''
-    if len(host) == 0:
-        host_list = ['127.0.0.1']
-    else:
-        host_list = list(host)
 
-    try:
-        cassandra_cluster = Cluster(host_list)
-        session = cassandra_cluster.connect(cluster)
-        session.default_timeout = 30.0
-    except Exception as e:
-        logging.error("Cassandra connection error: " + str(e))
-        sys.exit(1)
-    containers = __cassandra_query_containers(session, retention)
-    (retention_seconds, retention_interval) = __get_retention_interval(retention)
-    rows = __cassandra_select_retention(session, retention)
-    last_ts = None
-    if rows:
-        last_ts = rows[0].ts
-    now = datetime.datetime.now()
-    up_to = now - datetime.timedelta(seconds=retention_interval)
-    # up_to_ts = int(time.mktime(up_to.timetuple())) * 1000
-    if last_ts is not None and up_to <= last_ts:
-        return
+class RetentionHandler(object):
 
-    data_to_remove = {}
-    for container in containers:
-        # procs = __cassandra_query_proc(session, container.container)
-        # if proc.start not set, set it to min timestamp of cpu data
-        # set proc.end to last event timestamp of cpu data
-        rows = __cassandra_query_cpu(session, container.container, retention)
+    def __init__(self, cassandra_session):
+        self.session = cassandra_session
+
+
+    def retain(self, container, retention, last_ts, up_to):
+        rows = __cassandra_query_cpu(self.session, container, retention)
         filtered_rows = []
         if last_ts is None:
             filtered_rows = rows
@@ -410,9 +363,9 @@ def retain(retention, host, cluster):
                     filtered_rows.append(row)
         if filtered_rows:
             sorted_rows = sorted(filtered_rows, key=lambda x: x.ts)
-            __cassandra_compute_cpu(session, sorted_rows, retention=retention, cpu_all=False)
+            __cassandra_compute_cpu(self.session, sorted_rows, retention=retention, cpu_all=False)
 
-        rows = __cassandra_query_cpu_all(session, container.container, retention)
+        rows = __cassandra_query_cpu_all(self.session, container, retention)
         filtered_rows = []
         if last_ts is None:
             filtered_rows = rows
@@ -422,9 +375,9 @@ def retain(retention, host, cluster):
                     filtered_rows.append(row)
         if filtered_rows:
             sorted_rows = sorted(filtered_rows, key=lambda x: x.ts)
-            __cassandra_compute_cpu(session, sorted_rows, retention=retention, cpu_all=True)
+            __cassandra_compute_cpu(self.session, sorted_rows, retention=retention, cpu_all=True)
 
-        rows = __cassandra_query_mem(session, container.container, retention)
+        rows = __cassandra_query_mem(self.session, container, retention)
         filtered_rows = []
         if last_ts is None:
             filtered_rows = rows
@@ -434,12 +387,119 @@ def retain(retention, host, cluster):
                     filtered_rows.append(row)
         if filtered_rows:
             sorted_rows = sorted(filtered_rows, key=lambda x: x.ts)
-            __cassandra_compute_mem(session, sorted_rows, retention=retention)
+            __cassandra_compute_mem(self.session, sorted_rows, retention=retention)
 
-    __cassandra_update_retention(session, up_to, retention)
-    __cassandra_delete_cpu(session, retention)
-    __cassandra_delete_cpu_all(session, retention)
-    __cassandra_delete_mem(session, retention)
+    def callback_retain(self, ch, method, properties, body):
+        #TODO manage retention
+        rt = json.loads(body)
+        logging.debug('Message: %s' % (body))
+        retention = rt['retention']
+        container = rt['container']
+        (retention_seconds, retention_interval) = __get_retention_interval(retention)
+        rows = __cassandra_select_container_retention(self.session, container, retention)
+        last_ts = None
+        if rows:
+            last_ts = rows[0].ts
+        now = datetime.datetime.now()
+        up_to = now - datetime.timedelta(seconds=retention_interval)
+        # up_to_ts = int(time.mktime(up_to.timetuple())) * 1000
+        if last_ts is not None and up_to <= last_ts:
+            return
+        self.retain(container, retention, last_ts, up_to)
+        __cassandra_update_container_retention(self.session, container, up_to, retention)
+        __cassandra_delete_cpu(self.session, retention)
+        __cassandra_delete_cpu_all(self.session, retention)
+        __cassandra_delete_mem(self.session, retention)
+
+
+@run.command()
+@click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
+@click.option('--cluster', default='sysdig', help='cassandra cluster name')
+@click.option('--rabbit', help="rabbitmq host")
+def listen(host, cluster, rabbit):
+    if len(host) == 0:
+        host_list = ['127.0.0.1']
+    else:
+        host_list = list(host)
+
+    if 'CASSANDRA_HOST' in os.environ:
+        host_list = [os.environ['CASSANDRA_HOST']]
+    if 'CASSANDRA_CLUSTER' in os.environ:
+        cluster = os.environ['CASSANDRA_CLUSTER']
+    if 'RABBITMQ_HOST' in os.environ:
+        rabbit = os.environ['RABBITMQ_HOST']
+
+
+    try:
+        cassandra_cluster = Cluster(host_list)
+        session = cassandra_cluster.connect(cluster)
+        session.default_timeout = 30.0
+    except Exception as e:
+        logging.error("Cassandra connection error: " + str(e))
+        sys.exit(1)
+
+    rtHandler = RetentionHandler(session)
+
+    connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, heartbeat_interval=0))
+    channel = connection.channel()
+    channel.queue_declare(queue='bc_retain', durable=True)
+    channel.basic_qos(prefetch_count=1)
+    channel.basic_consume(
+            rtHandler.callback_retain,
+            queue='bc_retain')
+    channel.start_consuming()
+
+
+
+@run.command()
+@click.option('--retention', default='m', help='retention m(minutes), h(hours), d(days)')
+@click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
+@click.option('--cluster', default='sysdig', help='cassandra cluster name')
+@click.option('--rabbit', help="rabbitmq host")
+def retain(retention, host, cluster, rabbit):
+    '''
+    Merge events in larger window, send message to rabbitmq
+    '''
+    if len(host) == 0:
+        host_list = ['127.0.0.1']
+    else:
+        host_list = list(host)
+
+    if 'CASSANDRA_HOST' in os.environ:
+        host_list = [os.environ['CASSANDRA_HOST']]
+    if 'CASSANDRA_CLUSTER' in os.environ:
+        cluster = os.environ['CASSANDRA_CLUSTER']
+    if 'RABBITMQ_HOST' in os.environ:
+        rabbit = os.environ['RABBITMQ_HOST']
+
+
+    try:
+        cassandra_cluster = Cluster(host_list)
+        session = cassandra_cluster.connect(cluster)
+        session.default_timeout = 30.0
+    except Exception as e:
+        logging.error("Cassandra connection error: " + str(e))
+        sys.exit(1)
+    containers = __cassandra_query_containers(session, retention)
+
+    connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, heartbeat_interval=0))
+    channel = connection.channel()
+
+    for container in containers:
+        logging.info("Retain:%s:%s" % (container.container, retention))
+        rtcontainer = {
+            'container': container.container,
+            'retention': retention
+        }
+
+        channel.basic_publish(
+            exchange='',
+            routing_key='bc_retain',
+            body=json.dumps(rtcontainer),
+            properties=pika.BasicProperties(
+                # make message persistent
+                delivery_mode=2
+            ))
 
 
 if __name__ == '__main__':

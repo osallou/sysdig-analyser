@@ -69,12 +69,14 @@ setup(
                       'PyYAML',
                       'PyJWT',
                       'prometheus_client',
-                      'python-consul'
+                      'python-consul',
+                      'pika'
                      ],
     scripts=[
             'bc_api.py',
             'bc_web.py',
             'bc_analyse.py',
-            'bc_retention.py'
+            'bc_retention.py',
+            'bc_db.py'
     ],
 )

@@ -15,7 +15,33 @@ Apache 2.0 (see https://www.apache.org/licenses/LICENSE-2.0)
 
     python setup.py install
 
-# Live recording of sysdig events
+System: cassandra, rabbitmq
+
+
+# Installation
+
+## Using docker-compose
+
+    docker-compose up -d
+
+
+Script launch cassandra, consul, retention and web servers.
+
+## Setup
+
+To create or upgrade database schema, use bc_db.py
+
+At first launch:
+
+    python bc_db.py init
+
+For upgrades:
+
+    python bc_db.py upgrade
+
+
+Use *-h* for options to specify cassandra ip and cluster to use.
+
 
 ## Api keys
 
@@ -30,6 +56,8 @@ For help and cassandra connection info parameters:
 
     python bc_api.py  create --help
     python bc_api.py  delete --help
+
+# Live recording of sysdig events
 
 ## Manual
 
@@ -93,6 +121,32 @@ then
     python bc_analyse.py test.json
 
 
+# Retention
+
+bc_retention is in charge of merging records in a larger window (from seconds to minutes etc...)
+
+Execute via cron *bc_retention.py retain* with desired retention at regular interval (m, h, d). Program will send some requests via rabbitmq to *bc_retention.py listen* instances (can be scaled to manage many stored containers). Request will be sent for each container for desired retention.
+
+Some env variables can be defined vs cmd line:
+
+ * CASSANDRA_HOST
+ * CASSANDRA_CLUSTER
+ * RABBITMQ_HOST
+
+Example, execute 2 retention instances:
+
+    python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1
+    python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1
+
+Then via cron :
+
+    # every 5 minutes
+    */5 * * * * python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention m
+    # every 5 hours
+    0  */5 * * python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention h
+    # every day
+    0 * * * * python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention d
+
 # Web UI
 
 Web UI is used to display container info but also to receive live events from sysdig
@@ -128,39 +182,3 @@ Other env vars:
 
 If auth is enabled in config, a token is expected to give access to container data.
 A test token can be generated via test_token.py, else your proxy app should generate one before linking to app.
-
-# Cassandra
-
-## Data model
-
-            CREATE KEYSPACE sysdig WITH replication = {'class':'SimpleStrategy', 'replication_factor':1};
-
-            USE sysdig;
-            CREATE TABLE io (container varchar, io_in counter, io_out counter, ts timestamp, proc_id int, file_name varchar, PRIMARY KEY (container, proc_id, ts, file_name));
-            CREATE TABLE io_all (container varchar, io_in counter, io_out counter, proc_id int, file_name varchar, PRIMARY KEY (container, proc_id, file_name));
-            CREATE TABLE mem (container varchar,vm_size bigint, vm_rss bigint, vm_swap bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-            CREATE TABLE cpu (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
-            CREATE TABLE cpu_all (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-            CREATE TABLE proc (container varchar, start timestamp, end timestamp, proc_name varchar, exe varchar, args varchar, proc_id int, parent_id int, is_root int, PRIMARY KEY (container, proc_id));
-            CREATE TABLE proc_cpu (container varchar, cpu counter, proc_id int, PRIMARY KEY (container, proc_id));
-
-
-            // retention 10h
-            CREATE TABLE cpu_per_m (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
-            CREATE TABLE cpu_all_per_m (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-            // retention 24h*30 ~ 1m
-            CREATE TABLE cpu_per_h (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
-            CREATE TABLE cpu_all_per_h (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-            // retention 120d ~ 3m
-            CREATE TABLE cpu_per_d (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu));
-            CREATE TABLE cpu_all_per_d (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-
-
-            CREATE TABLE mem_per_m (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-            CREATE TABLE mem_per_h (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-            CREATE TABLE mem_per_d (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts));
-
-
-            CREATE TABLE retention(id int, ts timestamp, PRIMARY KEY(id));
-
-            CREATE TABLE api(id varchar, owner varchar, PRIMARY KEY(id));
