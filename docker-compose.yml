@@ -5,7 +5,7 @@
         image: rabbitmq
         hostname: sysdig-rabbitmq
         volumes:
-            - ${PWD}/rabbitmq:/var/lib/rabbitmq
+            - ${BCROOTDIR}/rabbitmq:/var/lib/rabbitmq
         environment:
             - RABBITMQ_DEFAULT_USER=test
             - RABBITMQ_DEFAULT_PASS=test
@@ -13,7 +13,7 @@
     bc-cassandra:
         image: cassandra
         volumes:
-            - ${PWD}/cassandra:/var/lib/cassandra
+            - ${BCROOTDIR}/cassandra:/var/lib/cassandra
 
     bc-consul:
         image: consul
