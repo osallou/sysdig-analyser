@@ -39,4 +39,6 @@
             - CASSANDRA_HOST=bc-cassandra
             - CASSANDRA_CLUSTER=sysdig
             - RABBITMQ_HOST=bc-rabbitmq
+            - RABBITMQ_USER=test
+            - RABBITMQ_PASSWORD=test
         command: python bc_retention.py listen

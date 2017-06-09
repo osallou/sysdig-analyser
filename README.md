@@ -133,6 +133,8 @@ Some env variables can be defined vs cmd line:
  * CASSANDRA_CLUSTER
  * RABBITMQ_HOST
 
+ For rabbitmq credentials, credentials MUST use env variables *RABBITMQ_USER* and *RABBITMQ_PASSWORD*
+
 Example, execute 2 retention instances:
 
     python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1

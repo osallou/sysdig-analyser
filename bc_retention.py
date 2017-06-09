@@ -417,6 +417,9 @@ class RetentionHandler(object):
 @click.option('--cluster', default='sysdig', help='cassandra cluster name')
 @click.option('--rabbit', help="rabbitmq host")
 def listen(host, cluster, rabbit):
+    '''
+    For rabbitmq credentials MUST use env variables RABBITMQ_USER and RABBITMQ_PASSWORD
+    '''
     if len(host) == 0:
         host_list = ['127.0.0.1']
     else:
@@ -429,6 +432,11 @@ def listen(host, cluster, rabbit):
     if 'RABBITMQ_HOST' in os.environ:
         rabbit = os.environ['RABBITMQ_HOST']
 
+    rabbitmq_user = None
+    rabbitmq_password = None
+    if 'RABBITMQ_USER' in os.environ and 'RABBITMQ_PASSWORD' in os.environ:
+            rabbitmq_user = os.environ['RABBITMQ_USER']
+            rabbitmq_password = os.environ['RABBITMQ_PASSWORD']
 
     try:
         cassandra_cluster = Cluster(host_list)
@@ -440,7 +448,12 @@ def listen(host, cluster, rabbit):
 
     rtHandler = RetentionHandler(session)
 
-    connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, heartbeat_interval=0))
+    connection = None
+    if rabbitmq_user:
+        credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_password)
+        connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, credentials=credentials, heartbeat_interval=0))
+    else:
+        connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, heartbeat_interval=0))
     channel = connection.channel()
     channel.queue_declare(queue='bc_retain', durable=True)
     channel.basic_qos(prefetch_count=1)
@@ -472,6 +485,11 @@ def retain(retention, host, cluster, rabbit):
     if 'RABBITMQ_HOST' in os.environ:
         rabbit = os.environ['RABBITMQ_HOST']
 
+    rabbitmq_user = None
+    rabbitmq_password = None
+    if 'RABBITMQ_USER' in os.environ and 'RABBITMQ_PASSWORD' in os.environ:
+            rabbitmq_user = os.environ['RABBITMQ_USER']
+            rabbitmq_password = os.environ['RABBITMQ_PASSWORD']
 
     try:
         cassandra_cluster = Cluster(host_list)
@@ -482,7 +500,13 @@ def retain(retention, host, cluster, rabbit):
         sys.exit(1)
     containers = __cassandra_query_containers(session, retention)
 
-    connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, heartbeat_interval=0))
+    connection = None
+    if rabbitmq_user:
+        credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_password)
+        connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, credentials=credentials, heartbeat_interval=0))
+    else:
+        connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, heartbeat_interval=0))
+
     channel = connection.channel()
 
     for container in containers:

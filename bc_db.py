@@ -45,7 +45,11 @@ def init(host, cluster):
         logging.exception("Cassandra connection error: " + str(e))
         sys.exit(1)
 
-    rows = session.execute('''SELECT * FROM dbschema''')
+    rows = None
+    try:
+        rows = session.execute('''SELECT * FROM dbschema''')
+    except Exception:
+        pass
     version = None
     if rows:
         version = rows[0].version
