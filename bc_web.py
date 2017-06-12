@@ -80,6 +80,8 @@ def __cassandra_load_api():
 
 apikeys = __cassandra_load_api()
 last_check = datetime.datetime.now()
+flask.g.last_check = last_check
+
 
 top_n = 10
 
@@ -412,6 +414,7 @@ def get_event(api):
         # check if reload necessary
         new_check = datetime.datetime.now()
         # if last check > 60s
+        last_check = flask.g.get('last_check', new_check)
         if last_check < new_check - datetime.timedelta(seconds=60l):
             logging.debug("Reload api keys")
             last_check = new_check

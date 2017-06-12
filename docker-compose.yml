@@ -28,7 +28,7 @@
         environment:
             - CASSANDRA_HOST=bc-cassandra
             - CASSANDRA_CLUSTER=sysdig
-            - DISABLE_AUTH=1
+            - AUTH_DISABLE=1
         ports:
             - "8000:8000"
         command: gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
