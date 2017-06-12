@@ -15,7 +15,6 @@ from cassandra.cluster import Cluster
 from progressbar import Percentage, ProgressBar, Bar
 import click
 
-
 @click.group()
 def run():
     pass
@@ -178,10 +177,10 @@ class RetentionHandler(object):
         (container, proc_id, up_to)
         )
 
-    def __cassandra_delete_cpu_all(self, session, retention):
+    def __cassandra_delete_cpu_all(self, session, retention, up_to):
         (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         now = datetime.datetime.now()
-        up_to = now - datetime.timedelta(seconds=retention_interval)
+        # up_to = now - datetime.timedelta(seconds=retention_interval)
         table = 'cpu_all'
         if retention == 'm':
             table = 'cpu_all'
@@ -200,10 +199,10 @@ class RetentionHandler(object):
 
 
 
-    def __cassandra_delete_cpu(self, session, retention):
+    def __cassandra_delete_cpu(self, session, retention, up_to):
         (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         now = datetime.datetime.now()
-        up_to = now - datetime.timedelta(seconds=retention_interval)
+        # up_to = now - datetime.timedelta(seconds=retention_interval)
 
         table = 'cpu'
         if retention == 'm':
@@ -222,10 +221,10 @@ class RetentionHandler(object):
             proc_id = int(proc_id)
             self.__cassandra_delete(session, table, container, proc_id, up_to)
 
-    def __cassandra_delete_mem(self, session, retention):
+    def __cassandra_delete_mem(self, session, retention, up_to):
         (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         now = datetime.datetime.now()
-        up_to = now - datetime.timedelta(seconds=retention_interval)
+        # up_to = now - datetime.timedelta(seconds=retention_interval)
 
         table = 'mem'
         if retention == 'm':
@@ -277,6 +276,7 @@ class RetentionHandler(object):
 
 
     def __cassandra_compute_cpu(self, session, container_events, retention='m', cpu_all=False):
+        logging.debug('compute cpu retention %s' % (retention))
         events = {}
         (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         # events[event['container']][event['cpu']][event['proc']]['duration']
@@ -317,6 +317,7 @@ class RetentionHandler(object):
 
 
     def __cassandra_compute_mem(self, session, container_events, retention='m'):
+        logging.debug('compute mem retention %s' % (retention))
         events = {}
         (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         # events[event['container']][event['cpu']][event['proc']]['duration']
@@ -406,9 +407,9 @@ class RetentionHandler(object):
                 return
             self.retain(container, retention, last_ts, up_to)
             self.__cassandra_update_container_retention(self.session, container, up_to, retention)
-            self.__cassandra_delete_cpu(self.session, retention)
-            self.__cassandra_delete_cpu_all(self.session, retention)
-            self.__cassandra_delete_mem(self.session, retention)
+            self.__cassandra_delete_cpu(self.session, retention, up_to)
+            self.__cassandra_delete_cpu_all(self.session, retention, up_to)
+            self.__cassandra_delete_mem(self.session, retention, up_to)
         except Exception as e:
             logging.exception("Failed to handle retention query: " + str(e))
         finally:
@@ -419,7 +420,8 @@ class RetentionHandler(object):
 @click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
 @click.option('--cluster', default='sysdig', help='cassandra cluster name')
 @click.option('--rabbit', help="rabbitmq host")
-def listen(host, cluster, rabbit):
+@click.option('--debug', help="set log level to debug", is_flag=True)
+def listen(host, cluster, rabbit, debug):
     '''
     For rabbitmq credentials MUST use env variables RABBITMQ_USER and RABBITMQ_PASSWORD
     '''
@@ -427,6 +429,9 @@ def listen(host, cluster, rabbit):
         host_list = ['127.0.0.1']
     else:
         host_list = list(host)
+
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     if 'CASSANDRA_HOST' in os.environ:
         host_list = [os.environ['CASSANDRA_HOST']]
