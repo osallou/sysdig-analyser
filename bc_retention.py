@@ -389,25 +389,30 @@ class RetentionHandler(object):
             self.__cassandra_compute_mem(self.session, sorted_rows, retention=retention)
 
     def callback_retain(self, ch, method, properties, body):
-        rt = json.loads(body)
-        logging.debug('Message: %s' % (body))
-        retention = rt['retention']
-        container = rt['container']
-        (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
-        rows = self.__cassandra_select_container_retention(self.session, container, retention)
-        last_ts = None
-        if rows:
-            last_ts = rows[0].ts
-        now = datetime.datetime.now()
-        up_to = now - datetime.timedelta(seconds=retention_interval)
-        # up_to_ts = int(time.mktime(up_to.timetuple())) * 1000
-        if last_ts is not None and up_to <= last_ts:
-            return
-        self.retain(container, retention, last_ts, up_to)
-        self.__cassandra_update_container_retention(self.session, container, up_to, retention)
-        self.__cassandra_delete_cpu(self.session, retention)
-        self.__cassandra_delete_cpu_all(self.session, retention)
-        self.__cassandra_delete_mem(self.session, retention)
+        try:
+            rt = json.loads(body)
+            logging.debug('Message: %s' % (body))
+            retention = rt['retention']
+            container = rt['container']
+            (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
+            rows = self.__cassandra_select_container_retention(self.session, container, retention)
+            last_ts = None
+            if rows:
+                last_ts = rows[0].ts
+            now = datetime.datetime.now()
+            up_to = now - datetime.timedelta(seconds=retention_interval)
+            # up_to_ts = int(time.mktime(up_to.timetuple())) * 1000
+            if last_ts is not None and up_to <= last_ts:
+                return
+            self.retain(container, retention, last_ts, up_to)
+            self.__cassandra_update_container_retention(self.session, container, up_to, retention)
+            self.__cassandra_delete_cpu(self.session, retention)
+            self.__cassandra_delete_cpu_all(self.session, retention)
+            self.__cassandra_delete_mem(self.session, retention)
+        except Exception as e:
+            logging.exception("Failed to handle retention query: " + str(e))
+        finally:
+            ch.basic_ack(delivery_tag=method.delivery_tag)
 
 
 @run.command()
