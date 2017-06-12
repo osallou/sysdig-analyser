@@ -177,7 +177,7 @@ class RetentionHandler(object):
         (container, proc_id, up_to)
         )
 
-    def __cassandra_delete_cpu_all(self, session, retention, up_to):
+    def __cassandra_delete_cpu_all(self, session, container, retention, up_to):
         (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         now = datetime.datetime.now()
         # up_to = now - datetime.timedelta(seconds=retention_interval)
@@ -189,7 +189,7 @@ class RetentionHandler(object):
         if retention == 'd':
             table = 'cpu_all_per_h'
         contproc = {}
-        rows = session.execute('SELECT container, proc_id FROM ' + table)
+        rows = session.execute('SELECT container, proc_id FROM ' + table + " WHERE container='" + container +"'")
         for row in rows:
             contproc[row.container+':'+str(row.proc_id)] = 1
         for elt in list(contproc.keys()):
@@ -199,7 +199,7 @@ class RetentionHandler(object):
 
 
 
-    def __cassandra_delete_cpu(self, session, retention, up_to):
+    def __cassandra_delete_cpu(self, session, container, retention, up_to):
         (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         now = datetime.datetime.now()
         # up_to = now - datetime.timedelta(seconds=retention_interval)
@@ -213,7 +213,7 @@ class RetentionHandler(object):
             table = 'cpu_per_h'
 
         contproc = {}
-        rows = session.execute('SELECT container, proc_id FROM ' + table)
+        rows = session.execute('SELECT container, proc_id FROM ' + table + " WHERE container='" + container +"'")
         for row in rows:
             contproc[row.container+':'+str(row.proc_id)] = 1
         for elt in list(contproc.keys()):
@@ -221,7 +221,7 @@ class RetentionHandler(object):
             proc_id = int(proc_id)
             self.__cassandra_delete(session, table, container, proc_id, up_to)
 
-    def __cassandra_delete_mem(self, session, retention, up_to):
+    def __cassandra_delete_mem(self, session, container, retention, up_to):
         (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         now = datetime.datetime.now()
         # up_to = now - datetime.timedelta(seconds=retention_interval)
@@ -235,7 +235,7 @@ class RetentionHandler(object):
             table = 'mem_per_h'
 
         contproc = {}
-        rows = session.execute('SELECT container, proc_id FROM ' + table)
+        rows = session.execute('SELECT container, proc_id FROM ' + table + " WHERE container='" + container +"'")
         for row in rows:
             contproc[row.container+':'+str(row.proc_id)] = 1
         for elt in list(contproc.keys()):
@@ -407,9 +407,9 @@ class RetentionHandler(object):
                 return
             self.retain(container, retention, last_ts, up_to)
             self.__cassandra_update_container_retention(self.session, container, up_to, retention)
-            self.__cassandra_delete_cpu(self.session, retention, up_to)
-            self.__cassandra_delete_cpu_all(self.session, retention, up_to)
-            self.__cassandra_delete_mem(self.session, retention, up_to)
+            self.__cassandra_delete_cpu(self.session, container, retention, up_to)
+            self.__cassandra_delete_cpu_all(self.session, container, retention, up_to)
+            self.__cassandra_delete_mem(self.session, container, retention, up_to)
         except Exception as e:
             logging.exception("Failed to handle retention query: " + str(e))
         finally:
