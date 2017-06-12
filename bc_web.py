@@ -2,6 +2,7 @@ from flask import Flask
 from flask import request
 from flask import Blueprint
 from flask.json import jsonify
+from flask import g
 import os
 import json
 import logging
@@ -79,8 +80,8 @@ def __cassandra_load_api():
     return res
 
 apikeys = __cassandra_load_api()
-last_check = datetime.datetime.now()
-flask.g.last_check = last_check
+# last_check = datetime.datetime.now()
+
 
 
 top_n = 10
@@ -414,10 +415,11 @@ def get_event(api):
         # check if reload necessary
         new_check = datetime.datetime.now()
         # if last check > 60s
-        last_check = flask.g.get('last_check', new_check)
-        if last_check < new_check - datetime.timedelta(seconds=60l):
+        last_check = g.get('last_check', None)
+        if last_check is None or last_check < new_check - datetime.timedelta(seconds=60l):
             logging.debug("Reload api keys")
-            last_check = new_check
+            g.last_check = new_check
+            # last_check = new_check
             __cassandra_load_api()
         if api not in apikeys:
             logging.warn("InvalidApiKey:%s" % (str(api)))
