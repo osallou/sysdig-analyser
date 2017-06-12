@@ -109,7 +109,7 @@ class RetentionHandler(object):
             (event['duration'], event['start'], event['proc'], event['container'])
         )
 
-    def __cassandra_query_containers(self, session, retention=None):
+    def cassandra_query_containers(self, session, retention=None):
         table = 'cpu_all'
         if retention == 'm':
             table = 'cpu_all'
@@ -503,7 +503,7 @@ def retain(retention, host, cluster, rabbit):
         sys.exit(1)
 
     rtHandler = RetentionHandler(session)
-    containers = rtHandler.__cassandra_query_containers(session, retention)
+    containers = rtHandler.cassandra_query_containers(session, retention)
 
     connection = None
     if rabbitmq_user:
