@@ -52,7 +52,7 @@ class RetentionHandler(object):
             retention_type = 1
         elif retention == 'd':
             retention_type = 2
-        rows = session.execute('''SELECT * from retention where container=%s and id= %s''', (container,str(retention_type)))
+        rows = session.execute('''SELECT * from retention where container=%s and id= %s''', (container, retention_type))
         return rows
 
 
