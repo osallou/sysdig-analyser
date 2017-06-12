@@ -146,11 +146,11 @@ Example, execute 2 retention instances:
 Then via cron :
 
     # every 5 minutes
-    */5 * * * * python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention m
+    */5 * * * * python bc_retention.py retain --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention m
     # every 5 hours
-    0  */5 * * python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention h
+    0  */5 * * python bc_retention.py retain --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention h
     # every day
-    0 * * * * python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention d
+    0 * * * * python bc_retention.py retain --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention d
 
 # Web UI
 

@@ -31,6 +31,8 @@
             - AUTH_DISABLE=1
         ports:
             - "8000:8000"
+        depends_on:
+            - bc-cassandra
         command: gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
 
     bc-retention:
@@ -41,4 +43,7 @@
             - RABBITMQ_HOST=bc-rabbitmq
             - RABBITMQ_USER=test
             - RABBITMQ_PASSWORD=test
+        depends_on:
+            - bc-cassandra
+            - bc-rabbitmq
         command: python bc_retention.py listen
