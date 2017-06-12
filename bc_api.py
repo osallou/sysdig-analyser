@@ -3,6 +3,7 @@ import os
 import logging
 import string
 import random
+import sys
 
 from cassandra.cluster import Cluster
 

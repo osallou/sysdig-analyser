@@ -27,6 +27,9 @@ System: cassandra, rabbitmq
 
 Script launch cassandra, consul, retention and web servers.
 
+retention and web servers mail fail to start as they need cassandra to be ready to accept conenctions.
+In this case, wait for cassandra to be ready and execute the command again.
+
 ## Setup
 
 To create or upgrade database schema, use bc_db.py
