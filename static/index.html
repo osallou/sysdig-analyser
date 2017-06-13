@@ -269,28 +269,7 @@
             $("#proc_table").DataTable();
             return result;
         }
-        //result['nodes'].push({'id': parent, 'label': proc_list[parent]+"(" + parent + ")"});
 
-        /*
-        for(var i=0;i<root.length;i++){
-            var child = root[i];
-            result['nodes'].push({'id':  child['id'], 'label':  proc_list[child['id']]+"("+ child['id']+")"});
-            result['edges'].push({'from': parent, 'to': child['id'], arrows:'to'});
-            var childchild = treenode[child['id']];
-            if(childchild != undefined && childchild.length<15){
-                for(var j=0;j<childchild.length;j++){
-                    var subchild = childchild[j];
-                    result['nodes'].push({'id':  subchild['id'], 'label':  proc_list[subchild['id']]+"("+ subchild['id']+")"});
-                    result['edges'].push({'from': child['id'], 'to': subchild['id'], arrows:'to'});
-                }
-            }
-            else{
-                //console.log("Proc network: too many sub processes: "+childchild.length)
-            }
-
-        }
-        */
-        //console.log(treenode);
         for(var key in treenode) {
             var elt = treenode[key];
             for(var j=0;j<elt.length;j++){
