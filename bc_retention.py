@@ -402,14 +402,15 @@ class RetentionHandler(object):
                 last_ts = rows[0].ts
             now = datetime.datetime.now()
             up_to = now - datetime.timedelta(seconds=retention_interval)
+            delete_to = now - datetime.timedelta(seconds=retention_seconds)
             # up_to_ts = int(time.mktime(up_to.timetuple())) * 1000
             if last_ts is not None and up_to <= last_ts:
                 return
             self.retain(container, retention, last_ts, up_to)
             self.__cassandra_update_container_retention(self.session, container, up_to, retention)
-            self.__cassandra_delete_cpu(self.session, container, retention, up_to)
-            self.__cassandra_delete_cpu_all(self.session, container, retention, up_to)
-            self.__cassandra_delete_mem(self.session, container, retention, up_to)
+            self.__cassandra_delete_cpu(self.session, container, retention, delete_to)
+            self.__cassandra_delete_cpu_all(self.session, container, retention, delete_to)
+            self.__cassandra_delete_mem(self.session, container, retention, delete_to)
         except Exception as e:
             logging.exception("Failed to handle retention query: " + str(e))
         finally:
