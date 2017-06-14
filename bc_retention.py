@@ -186,7 +186,7 @@ class RetentionHandler(object):
         )
 
     def __cassandra_delete_cpu_all(self, session, container, retention, up_to):
-        # (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
+        # (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
         # now = datetime.datetime.now()
         # up_to = now - datetime.timedelta(seconds=retention_interval)
         table = 'cpu_all'
