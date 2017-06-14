@@ -416,7 +416,7 @@ def get_event(api):
         new_check = datetime.datetime.now()
         # if last check > 60s
         last_check = g.get('last_check', None)
-        if last_check is None or last_check < new_check - datetime.timedelta(seconds=60l):
+        if last_check is None or last_check < new_check - datetime.timedelta(seconds=60):
             logging.debug("Reload api keys")
             g.last_check = new_check
             # last_check = new_check
