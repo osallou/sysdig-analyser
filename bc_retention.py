@@ -198,7 +198,7 @@ class RetentionHandler(object):
             table = 'cpu_all_per_h'
 
         (contproc, last_w) = self.__get_cont_proc(session, table, 'duration', container)
-        if last_w < up_to:
+        if datetime.datetime.fromtimestamp(last_w/1000000) < up_to:
             logging.debug("No new record, keep existing records")
             return
 
@@ -223,7 +223,7 @@ class RetentionHandler(object):
             table = 'cpu_per_h'
 
         (contproc, last_w) = self.__get_cont_proc(session, table, 'duration', container)
-        if last_w < up_to:
+        if datetime.datetime.fromtimestamp(last_w/1000000) < up_to:
             logging.debug("No new record, keep existing records")
             return
 
@@ -246,7 +246,7 @@ class RetentionHandler(object):
             table = 'mem_per_h'
 
         (contproc, last_w) = self.__get_cont_proc(session, table, 'vm_size', container)
-        if last_w < up_to:
+        if datetime.datetime.fromtimestamp(last_w/1000000) < up_to:
             logging.debug("No new record, keep existing records")
             return
 
