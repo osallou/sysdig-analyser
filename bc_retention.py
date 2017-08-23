@@ -348,15 +348,15 @@ class RetentionHandler(object):
         events = {}
 
     def __get_retention_interval(self, retention):
-        retention_seconds = 3600 * 10
+        retention_seconds = 3600
         retention_interval = 60
         if retention == 'm':
-            # 10h
-            retention_seconds = 3600 * 10
+            # 1h
+            retention_seconds = 3600
             retention_interval = 60
         elif retention == 'h':
-            # 30j
-            retention_seconds = 3600 * 24 * 30
+            # 2d
+            retention_seconds = 3600 * 24 * 2
             retention_interval = 3600
         elif retention == 'd':
             # 120d
