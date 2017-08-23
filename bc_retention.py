@@ -170,7 +170,7 @@ class RetentionHandler(object):
         last_w = None
         for row in rows:
             contproc[row.container+':'+str(row.proc_id)] = 1
-            if last_w is None or last_w > row.last_w:
+            if last_w is None or row.last_w > last_w:
                 last_w = row.last_w
         return (contproc, last_w)
 
