@@ -184,6 +184,10 @@ def __cassandra_update_cpu_all(event):
 def __cassandra_update_cpu(event):
         __cassandra_update_per_cpu(event)
         __cassandra_update_cpu_all(event)
+        if event:
+            session.execute(
+            'UPDATE container SET status=3 WHERE id=\'' + event['container'] + '\''
+            )
 
 def __cassandra_update_mem(event):
         if not event:

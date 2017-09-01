@@ -110,13 +110,20 @@ class RetentionHandler(object):
 
     def cassandra_query_containers(self, session, retention=None):
         table = 'cpu_all'
+        active_retention = 3
         if retention == 'm':
+            active_retention = 3
             table = 'cpu_all'
         if retention == 'h':
+            active_retention = 2
             table = 'cpu_all_per_m'
         if retention == 'd':
+            active_retention = 1
             table = 'cpu_all_per_h'
-        rows = session.execute("SELECT DISTINCT container FROM " + table)
+
+        # rows = session.execute("SELECT DISTINCT container FROM " + table)
+
+        rows = session.execute('SELECT id FROM container WHERE status >= ' + str(active_retention) + ' ALLOW FILTERING')
         return rows
 
     def __cassandra_query_cpu(self, session, container, retention):
@@ -200,13 +207,13 @@ class RetentionHandler(object):
         (contproc, last_w) = self.__get_cont_proc(session, table, 'duration', container)
         if datetime.datetime.fromtimestamp(last_w/1000000) < up_to:
             logging.debug("No new record, keep existing records")
-            return
+            return False
 
         for elt in list(contproc.keys()):
             (container, proc_id) = elt.split(':')
             proc_id = int(proc_id)
             self.__cassandra_delete(session, table, container, proc_id, up_to)
-
+        return True
 
 
     def __cassandra_delete_cpu(self, session, container, retention, up_to):
@@ -225,12 +232,13 @@ class RetentionHandler(object):
         (contproc, last_w) = self.__get_cont_proc(session, table, 'duration', container)
         if datetime.datetime.fromtimestamp(last_w/1000000) < up_to:
             logging.debug("No new record, keep existing records")
-            return
+            return False
 
         for elt in list(contproc.keys()):
             (container, proc_id) = elt.split(':')
             proc_id = int(proc_id)
             self.__cassandra_delete(session, table, container, proc_id, up_to)
+        return True
 
     def __cassandra_delete_mem(self, session, container, retention, up_to):
         # (retention_seconds, retention_interval) = self.__get_retention_interval(retention)
@@ -248,12 +256,13 @@ class RetentionHandler(object):
         (contproc, last_w) = self.__get_cont_proc(session, table, 'vm_size', container)
         if datetime.datetime.fromtimestamp(last_w/1000000) < up_to:
             logging.debug("No new record, keep existing records")
-            return
+            return False
 
         for elt in list(contproc.keys()):
             (container, proc_id) = elt.split(':')
             proc_id = int(proc_id)
             self.__cassandra_delete(session, table, container, proc_id, up_to)
+            return True
 
 
     def add_event(self, events, event):
@@ -420,9 +429,24 @@ class RetentionHandler(object):
                 return
             self.retain(container, retention, last_ts, up_to)
             self.__cassandra_update_container_retention(self.session, container, up_to, retention)
-            self.__cassandra_delete_cpu(self.session, container, retention, delete_to)
-            self.__cassandra_delete_cpu_all(self.session, container, retention, delete_to)
-            self.__cassandra_delete_mem(self.session, container, retention, delete_to)
+            got_record = self.__cassandra_delete_cpu(self.session, container, retention, delete_to)
+            got_record = self.__cassandra_delete_cpu_all(self.session, container, retention, delete_to)
+            if not got_record:
+                active_retention = 2
+                if retention == 'm':
+                    active_retention = 2
+                if retention == 'h':
+                    active_retention = 1
+                if retention == 'd':
+                    active_retention = 0
+
+                # Update status of container if no new records
+                session.execute(
+                    'UPDATE container SET status=' + str(active_retention) + ' WHERE id=\'' + container + '\''
+                )
+
+            got_record = self.__cassandra_delete_mem(self.session, container, retention, delete_to)
+
         except Exception as e:
             logging.exception("Failed to handle retention query: " + str(e))
         finally:
@@ -533,9 +557,9 @@ def retain(retention, host, cluster, rabbit):
     channel = connection.channel()
 
     for container in containers:
-        logging.info("Retain:%s:%s" % (container.container, retention))
+        logging.info("Retain:%s:%s" % (container.id, retention))
         rtcontainer = {
-            'container': container.container,
+            'container': container.id,
             'retention': retention
         }
 

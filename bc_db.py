@@ -62,6 +62,9 @@ def init(host, cluster):
     session.execute('''CREATE TABLE IF NOT EXISTS api(id varchar, owner varchar, PRIMARY KEY(id))''')
     session.execute('''CREATE TABLE IF NOT EXISTS retention(container varchar, id int, ts timestamp, PRIMARY KEY((container,id)))''')
 
+    session.execute('''CREATE TABLE container(id varchar, status int, primary key(id))''')
+    session.execute('''CREATE INDEX on container(status)''')
+
     session.execute('''CREATE TABLE IF NOT EXISTS io (container varchar, io_in counter, io_out counter, ts timestamp, proc_id int, file_name varchar, PRIMARY KEY (container, proc_id, ts, file_name))''')
     session.execute('''CREATE TABLE IF NOT EXISTS io_all (container varchar, io_in counter, io_out counter, proc_id int, file_name varchar, PRIMARY KEY (container, proc_id, file_name))''')
     session.execute('''CREATE TABLE IF NOT EXISTS mem (container varchar,vm_size bigint, vm_rss bigint, vm_swap bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts))''')
