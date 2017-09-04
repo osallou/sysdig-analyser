@@ -125,7 +125,7 @@ class RetentionHandler(object):
             for elt in list(contproc.keys()):
                 (container, proc_id) = elt.split(':')
                 proc_id = int(proc_id)
-                self.__cassandra_delete(session, table, container, proc_id, up_to)
+                self.__cassandra_delete(table, container, proc_id, up_to)
 
     def __delete_old(self, container):
         self.__cassandra_delete_cpu(container)
