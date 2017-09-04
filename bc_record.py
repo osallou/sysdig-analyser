@@ -47,7 +47,7 @@ class RetentionHandler(object):
             retention_seconds = 3600 * 24 * 120
         if retention_seconds is None:
             return None
-        up_to = datetime.datetime.now() - datetime.timedelta(second=retention_seconds)
+        up_to = datetime.datetime.now() - datetime.timedelta(seconds=retention_seconds)
         return time.mktime(up_to.timetuple())
 
     def __cassandra_update_io(self, event):
@@ -67,7 +67,7 @@ class RetentionHandler(object):
         start = datetime.datetime.fromtimestamp(event['start'])
         start_m = start.replace(second=0)
         start_h = start_m.replace(minute=0)
-        start_d = start_m.replace(hour=0)
+        start_d = start_h.replace(hour=0)
         self.session.execute(
             """
             UPDATE cpu
@@ -107,7 +107,7 @@ class RetentionHandler(object):
         start = datetime.datetime.fromtimestamp(event['start'])
         start_m = start.replace(second=0)
         start_h = start_m.replace(minute=0)
-        start_d = start_m.replace(hour=0)
+        start_d = start_h.replace(hour=0)
         self.session.execute(
             """
             UPDATE proc_cpu
@@ -160,7 +160,7 @@ class RetentionHandler(object):
         start = datetime.datetime.fromtimestamp(event['start'])
         start_m = start.replace(second=0)
         start_h = start_m.replace(minute=0)
-        start_d = start_m.replace(hour=0)
+        start_d = start_h.replace(hour=0)
         self.session.execute(
             """
             UPDATE mem
@@ -290,7 +290,7 @@ class RetentionHandler(object):
         else:
             now = datetime.datetime.now()
             last_delete_date = datetime.datetime.fromtimestamp(int(last_delete))
-            if last_delete_date < now - datetime.timedelta(second=60*10):
+            if last_delete_date < now - datetime.timedelta(seconds=60*10):
                 self.__delete_old(container)
 
     def callback_record(self, ch, method, properties, body):
