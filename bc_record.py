@@ -50,6 +50,28 @@ class RetentionHandler(object):
         up_to = datetime.datetime.now() - datetime.timedelta(seconds=retention_seconds)
         return time.mktime(up_to.timetuple())
 
+    def __cassandra_update_procs(self, event):
+        '''
+        Record process info
+        '''
+        if not event:
+            return
+        if 'is_root' not in event:
+            event['is_root'] = 0
+
+        self.session.execute(
+            """
+            UPDATE proc
+            SET parent_id = %s,
+                proc_name = %s,
+                exe=%s,
+                args=%s,
+                is_root=%s
+            WHERE proc_id=%s and container=%s
+            """,
+            (event['parent_id'], event['proc_name'], event['exe'], event['args'],  event['is_root'], event['proc'], event['container'])
+        )
+
     def __cassandra_update_io(self, event):
         self.session.execute(
             """
