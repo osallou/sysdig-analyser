@@ -10,6 +10,9 @@
             - RABBITMQ_DEFAULT_USER=test
             - RABBITMQ_DEFAULT_PASS=test
 
+    bc-redis:
+        image: redis
+
     bc-cassandra:
         image: cassandra
         volumes:
@@ -28,14 +31,31 @@
         environment:
             - CASSANDRA_HOST=bc-cassandra
             - CASSANDRA_CLUSTER=sysdig
+            - RABBITMQ_HOST=bc-rabbitmq
+            - RABBITMQ_USER=test
+            - RABBITMQ_PASSWORD=test
             - AUTH_DISABLE=1
         ports:
             - "8000:8000"
         depends_on:
             - bc-cassandra
-        command: gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
+        command: gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web_record:app
 
-    bc-retention:
+    bc-record:
+        image: osallou/bubble-web
+        environment:
+            - CASSANDRA_HOST=bc-cassandra
+            - CASSANDRA_CLUSTER=sysdig
+            - RABBITMQ_HOST=bc-rabbitmq
+            - RABBITMQ_USER=test
+            - RABBITMQ_PASSWORD=test
+            - REDIS_HOST=bc-redis
+        depends_on:
+            - bc-cassandra
+            - bc-rabbitmq
+        command: python bc_record.py listen --debug
+
+    bc-clean:
         image: osallou/bubble-web
         environment:
             - CASSANDRA_HOST=bc-cassandra
@@ -46,4 +66,4 @@
         depends_on:
             - bc-cassandra
             - bc-rabbitmq
-        command: python bc_retention.py listen
+        command: python bc_clean.py listen --debug

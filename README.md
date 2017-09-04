@@ -15,7 +15,7 @@ Apache 2.0 (see https://www.apache.org/licenses/LICENSE-2.0)
 
     python setup.py install
 
-System: cassandra, rabbitmq
+System: cassandra, rabbitmq, redis
 
 
 # Installation
@@ -25,10 +25,25 @@ System: cassandra, rabbitmq
     docker-compose up -d
 
 
-Script launch cassandra, consul, retention and web servers.
+Script launches cassandra, consul, redis and bc web servers, record and clean processes
 
-retention and web servers mail fail to start as they need cassandra to be ready to accept conenctions.
+bc processes may fail to start as they need cassandra to be ready to accept connections.
 In this case, wait for cassandra to be ready and execute the command again.
+
+Available env variables:
+
+ * CASSANDRA_HOST=bc-cassandra
+ * CASSANDRA_CLUSTER=sysdig
+ * RABBITMQ_HOST=bc-rabbitmq
+ * RABBITMQ_USER=test
+ * RABBITMQ_PASSWORD=XXX
+ * REDIS_HOST=bc-redis
+ * BC_RETENTION_SECONDS=3600
+ * BC_RETENTION_MINUTES=172800
+ * BC_RETENTION_HOURS=10368000
+
+BC_RETENTION_XX are the number of seconds to keep in database for a container. Older records will be deleted.
+Delete occurs after an event is received. If there is no new record, then last BC_RETENTION_XX are kept.
 
 ## Setup
 
@@ -93,68 +108,23 @@ You can use Dockerfile (in docker dir to create a sysdig image containing the lu
 x.y.z being the web ui address, possibly load-balanced
 
 
-# Using sysdig records
-
-## To execute sysdig
-
-docker run -it --rm --name=sysdig --privileged=true \
-           -v ${PWD}:/mnt/sysdig \
-           --volume=/var/run/docker.sock:/host/var/run/docker.sock \
-           --volume=/dev:/host/dev \
-           --volume=/proc:/host/proc:ro \
-           --volume=/boot:/host/boot:ro \
-           --volume=/lib/modules:/host/lib/modules:ro \
-           --volume=/usr:/host/usr:ro \
-           sysdig/sysdig
-
-## Sysdig recording
-
-    sysdig -pc -w myoutput.scap
-
-
-
-## Analyse saved file
-
-
-    sysdig -pc -j  -r test.scap > test.json
-
-
-then
-
-    python bc_analyse.py test.json
-
-
-# Retention
-
-bc_retention is in charge of merging records in a larger window (from seconds to minutes etc...)
-
-Execute via cron *bc_retention.py retain* with desired retention at regular interval (m, h, d). Program will send some requests via rabbitmq to *bc_retention.py listen* instances (can be scaled to manage many stored containers). Request will be sent for each container for desired retention.
-
-Some env variables can be defined vs cmd line:
-
- * CASSANDRA_HOST
- * CASSANDRA_CLUSTER
- * RABBITMQ_HOST
-
- For rabbitmq credentials, credentials MUST use env variables *RABBITMQ_USER* and *RABBITMQ_PASSWORD*
-
-Example, execute 2 retention instances:
-
-    python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1
-    python bc_retention.py listen --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1
-
-Then via cron :
-
-    # every 5 minutes
-    */5 * * * * python bc_retention.py retain --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention m
-    # every 5 hours
-    0  */5 * * python bc_retention.py retain --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention h
-    # every day
-    0 * * * * python bc_retention.py retain --host 127.0.0.1 --cluster sysdig --rabbit 127.0.0.1 --retention d
-
-# Web UI
+# Processes
 
 Web UI is used to display container info but also to receive live events from sysdig
+Events are then dispatched to bc_record to record events in database then to clean process if old events need to be deleted.
+
+# Background processes
+
+## bc_record
+
+Listen to rabbitmq for sysdig events sent by web process and record events in cassandra (per seconds, minutes, hours and days)
+At regular interval, bc_record will send events to bc_clean for old record deletion
+
+## bc_clean
+
+Delete from database old records (older than BC_RETENTION_XX seconds)
+
+# Web UI
 
 ## development
 
