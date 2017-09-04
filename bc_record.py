@@ -88,7 +88,7 @@ class RetentionHandler(object):
 
 
     def __get_ts(self, event_date):
-        return int(time.mktime(start.timetuple())*1000)
+        return int(time.mktime(event_date.timetuple())*1000)
 
     def __cassandra_update_per_cpu(self, event):
         if not event:
