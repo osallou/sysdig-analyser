@@ -75,7 +75,7 @@ def init(host, cluster):
     for r in['m', 'h', 'd']:
         session.execute('''CREATE TABLE IF NOT EXISTS cpu_per_''' + r + ''' (container varchar, duration counter, cpu int, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts, cpu))''')
         session.execute('''CREATE TABLE IF NOT EXISTS cpu_all_per_''' + r + ''' (container varchar, duration counter, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts))''')
-        session.execute('''CREATE TABLE IF NOT EXISTS mem_per_''' + r + ''' (container varchar,vm_size bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts))''')
+        session.execute('''CREATE TABLE IF NOT EXISTS mem_per_''' + r + ''' (container varchar,vm_size bigint, vm_rss bigint, vm_swap bigint, ts timestamp, proc_id int, PRIMARY KEY (container, proc_id, ts))''')
     session.execute('''UPDATE dbschema SET version=1 WHERE id=1''')
 
     if cassandra_cluster:
