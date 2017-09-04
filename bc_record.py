@@ -216,7 +216,7 @@ class RetentionHandler(object):
     def __cassandra_delete(self, table, container, proc_id, up_to=None):
         if up_to is None:
             return;
-        logging.debug("DELETE FROM %s container=%s, proc_id=%s,ts<%s" % (table, container, str(proc_id), str(up_to)))
+        logging.debug("DELETE FROM %s container=%s, proc_id=%s, ts<%s" % (table, container, str(proc_id), str(up_to)))
         self.session.execute(
         """
         DELETE FROM """ + table + """ WHERE container=%s AND proc_id=%s AND ts<%s;

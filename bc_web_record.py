@@ -20,6 +20,7 @@ from prometheus_client import multiprocess
 from prometheus_client import CollectorRegistry
 from cassandra.cluster import Cluster
 import consul
+import pika
 
 FLASK_REQUEST_LATENCY = Histogram('flask_request_latency_seconds', 'Flask Request Latency',
     ['method', 'endpoint'])
