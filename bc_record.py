@@ -234,6 +234,8 @@ class RetentionHandler(object):
 
     def __delete_old(self, container):
         logging.debug('Request cleanup of %s' % (container))
+        now = datetime.datetime.now()
+        self.redis_client.set('bc:' + container + 'last_delete', time.mktime(now.timetuple()))
         try:
             self.channel.basic_publish(
                 exchange='',

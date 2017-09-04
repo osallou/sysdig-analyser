@@ -137,7 +137,7 @@ class RetentionHandler(object):
             rt = json.loads(body)
             content = rt['event']
             logging.debug('Message: %s' % (content))
-            self.__delete_old(event['container'])
+            self.__delete_old(content['container'])
         except Exception as e:
             logging.exception("Failed to handle retention query: " + str(e))
         finally:
