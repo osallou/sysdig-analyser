@@ -235,7 +235,7 @@ class RetentionHandler(object):
     def __delete_old(self, container):
         logging.debug('Request cleanup of %s' % (container))
         now = datetime.datetime.now()
-        self.redis_client.set('bc:' + container + 'last_delete', time.mktime(now.timetuple()))
+        self.redis_client.set('bc:' + container + ':last_delete', time.mktime(now.timetuple()))
         try:
             self.channel.basic_publish(
                 exchange='',
@@ -249,7 +249,7 @@ class RetentionHandler(object):
             logging.exception('Failed to send clean event: ' + str(e))
 
     def __cleanup(self, container):
-        last_delete = self.redis_client.get('bc:' + container + 'last_delete')
+        last_delete = self.redis_client.get('bc:' + container + ':last_delete')
         if last_delete is None:
             self.__delete_old(container)
         else:
