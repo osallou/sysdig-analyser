@@ -32,6 +32,7 @@ class RetentionHandler(object):
         if 'REDIS_PORT' in os.environ:
                 redis_host = int(os.environ['REDIS_PORT'])
         self.redis_client = redis.Redis(host=redis_host, port=redis_port)
+        self.channel = None
 
     def __get_retention_interval(self, retention):
         '''
@@ -231,86 +232,19 @@ class RetentionHandler(object):
             (event['vm_size'], event['vm_rss'], event['vm_swap'], self.__get_ts(start_d), event['proc'], event['container'])
         )
 
-    def __get_cont_proc(self, container):
-        '''
-        Get proc ids with last write time for container
-        '''
-        contproc = {}
-        rows = self.session.execute("SELECT container, proc_id FROM proc_cpu WHERE container='" + container + "'")
-        last_w = None
-        for row in rows:
-            contproc[row.container+':'+str(row.proc_id)] = 1
-        return contproc
-
-    def __cassandra_delete(self, table, container, proc_id, up_to=None):
-        if up_to is None:
-            return;
-        logging.debug("DELETE FROM %s container=%s, proc_id=%s, ts<%s" % (table, container, str(proc_id), str(up_to)))
-        self.session.execute(
-        """
-        DELETE FROM """ + table + """ WHERE container=%s AND proc_id=%s AND ts<%s;
-        """,
-        (container, proc_id, up_to)
-        )
-
-    def __cassandra_delete_cpu_all(self, container):
-        contproc = self.__get_cont_proc(container)
-        for table in ['cpu_all', 'cpu_all_per_m', 'cpu_all_per_h']:
-            up_to = None
-            if table == 'cpu_all':
-                up_to = self.__get_retention_interval('s')
-            elif table ==  'cpu_all_per_m':
-                up_to = self.__get_retention_interval('m')
-            elif table ==  'cpu_all_per_h':
-                up_to = self.__get_retention_interval('h')
-            if up_to is None:
-                logging.debug('nothing in cpu_all to delete for %s' % (container))
-                return
-            for elt in list(contproc.keys()):
-                (container, proc_id) = elt.split(':')
-                proc_id = int(proc_id)
-                self.__cassandra_delete(table, container, proc_id, up_to)
-
-    def __cassandra_delete_cpu(self, container):
-        contproc = self.__get_cont_proc(container)
-        for table in ['cpu', 'cpu_per_m', 'cpu_per_h']:
-            up_to = None
-            if table == 'cpu':
-                up_to = self.__get_retention_interval('s')
-            elif table ==  'cpu_per_m':
-                up_to = self.__get_retention_interval('m')
-            elif table ==  'cpu_per_h':
-                up_to = self.__get_retention_interval('h')
-            if up_to is None:
-                logging.debug('nothing to in cpu delete for %s' % (container))
-            for elt in list(contproc.keys()):
-                (container, proc_id) = elt.split(':')
-                proc_id = int(proc_id)
-                self.__cassandra_delete(table, container, proc_id, up_to)
-
-    def __cassandra_delete_mem(self, container):
-        contproc = self.__get_cont_proc(container)
-        for table in ['mem', 'mem_per_m', 'mem_per_h']:
-            up_to = None
-            if table == 'mem':
-                up_to = self.__get_retention_interval('s')
-            elif table ==  'mem_per_m':
-                up_to = self.__get_retention_interval('m')
-            elif table ==  'mem_per_h':
-                up_to = self.__get_retention_interval('h')
-            if up_to is None:
-                logging.debug('nothing to delete in mem for %s' % (container))
-            for elt in list(contproc.keys()):
-                (container, proc_id) = elt.split(':')
-                proc_id = int(proc_id)
-                self.__cassandra_delete(session, table, container, proc_id, up_to)
-
     def __delete_old(self, container):
-        now = datetime.datetime.now()
-        self.redis_client.set('bc:' + container + 'last_delete', time.mktime(now.timetuple()))
-        self.__cassandra_delete_cpu(container)
-        self.__cassandra_delete_cpu_all(container)
-        self.__cassandra_delete_mem(container)
+        self.logging.debug('Request cleanup of %s' % (container))
+        try:
+            self.channel.basic_publish(
+                exchange='',
+                routing_key='bc_clean',
+                body=json.dumps({'event': {'container': container}}),
+                properties=pika.BasicProperties(
+                    # make message persistent
+                    delivery_mode=2
+                ))
+        except Exception as e:
+            logging.exception('Failed to send clean event: ' + str(e))
 
     def __cleanup(self, container):
         last_delete = self.redis_client.get('bc:' + container + 'last_delete')
@@ -422,6 +356,7 @@ def listen(host, cluster, rabbit, debug):
     else:
         connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, heartbeat_interval=0))
     channel = connection.channel()
+    rtHandler.channel = channel
     channel.queue_declare(queue='bc_record', durable=True)
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(
