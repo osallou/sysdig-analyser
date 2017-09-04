@@ -83,7 +83,7 @@ class RetentionHandler(object):
             (event['in'], event['out'], event['proc'], event['name'], event['container'])
         )
 
-    def __cassandra_update_per_cpu(event):
+    def __cassandra_update_per_cpu(self, event):
         if not event:
             return
         start = datetime.datetime.fromtimestamp(event['start'])
@@ -123,7 +123,7 @@ class RetentionHandler(object):
             (event['duration'], time.mktime(start_d.timetuple()), int(event['proc']), event['cpu'], event['container'])
         )
 
-    def __cassandra_update_cpu_all(event):
+    def __cassandra_update_cpu_all(self, event):
         if not event:
             return
         start = datetime.datetime.fromtimestamp(event['start'])
