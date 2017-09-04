@@ -157,7 +157,7 @@ class RetentionHandler(object):
         )
         self.session.execute(
             """
-            UPDATE cpu_all
+            UPDATE cpu_all_per_m
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s and container=%s
             """,
@@ -165,7 +165,7 @@ class RetentionHandler(object):
         )
         self.session.execute(
             """
-            UPDATE cpu_all
+            UPDATE cpu_all_per_h
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s and container=%s
             """,
@@ -173,7 +173,7 @@ class RetentionHandler(object):
         )
         self.session.execute(
             """
-            UPDATE cpu_all
+            UPDATE cpu_all_per_d
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s and container=%s
             """,
