@@ -51,7 +51,7 @@ class RetentionHandler(object):
         if retention_seconds is None:
             return None
         up_to = datetime.datetime.now() - datetime.timedelta(seconds=retention_seconds)
-        return time.mktime(up_to.timetuple())*1000
+        return int(time.mktime(up_to.timetuple())*1000)
 
     def __cassandra_update_procs(self, event):
         '''
