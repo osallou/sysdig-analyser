@@ -42,12 +42,18 @@ class RetentionHandler(object):
         if retention == 's':
             # 1h
             retention_seconds = 3600
+            if 'BC_RETENTION_SECONDS' in os.environ:
+                retention_seconds = os.environ['BC_RETENTION_SECONDS']
         elif retention == 'h':
             # 2d
             retention_seconds = 3600 * 24 * 2
+            if 'BC_RETENTION_MINUTES' in os.environ:
+                retention_seconds = os.environ['BC_RETENTION_MINUTES']
         elif retention == 'm':
             # 120d
             retention_seconds = 3600 * 24 * 120
+            if 'BC_RETENTION_HOURS' in os.environ:
+                retention_seconds = os.environ['BC_RETENTION_HOURS']
         if retention_seconds is None:
             return None
         up_to = datetime.datetime.now() - datetime.timedelta(seconds=retention_seconds)
