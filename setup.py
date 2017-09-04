@@ -70,13 +70,15 @@ setup(
                       'PyJWT',
                       'prometheus_client',
                       'python-consul',
-                      'pika'
+                      'pika',
+                      'redis'
                      ],
     scripts=[
             'bc_api.py',
             'bc_web.py',
             'bc_analyse.py',
             'bc_retention.py',
-            'bc_db.py'
+            'bc_db.py',
+            'bc_record.py'
     ],
 )
