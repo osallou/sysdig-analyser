@@ -229,11 +229,11 @@ class RetentionHandler(object):
         for table in ['cpu_all', 'cpu_all_per_m', 'cpu_all_per_h']:
             up_to = None
             if table == 'cpu_all':
-                up_to = __get_retention_interval('s')
+                up_to = self.__get_retention_interval('s')
             elif table ==  'cpu_all_per_m':
-                up_to = __get_retention_interval('m')
+                up_to = self.__get_retention_interval('m')
             elif table ==  'cpu_all_per_h':
-                up_to = __get_retention_interval('h')
+                up_to = self.__get_retention_interval('h')
             if up_to is None:
                 logging.debug('nothing in cpu_all to delete for %s' % (container))
                 return
@@ -247,11 +247,11 @@ class RetentionHandler(object):
         for table in ['cpu', 'cpu_per_m', 'cpu_per_h']:
             up_to = None
             if table == 'cpu':
-                up_to = __get_retention_interval('s')
+                up_to = self.__get_retention_interval('s')
             elif table ==  'cpu_per_m':
-                up_to = __get_retention_interval('m')
+                up_to = self.__get_retention_interval('m')
             elif table ==  'cpu_per_h':
-                up_to = __get_retention_interval('h')
+                up_to = self.__get_retention_interval('h')
             if up_to is None:
                 logging.debug('nothing to in cpu delete for %s' % (container))
             for elt in list(contproc.keys()):
@@ -264,11 +264,11 @@ class RetentionHandler(object):
         for table in ['mem', 'mem_per_m', 'mem_per_h']:
             up_to = None
             if table == 'mem':
-                up_to = __get_retention_interval('s')
+                up_to = self.__get_retention_interval('s')
             elif table ==  'mem_per_m':
-                up_to = __get_retention_interval('m')
+                up_to = self.__get_retention_interval('m')
             elif table ==  'mem_per_h':
-                up_to = __get_retention_interval('h')
+                up_to = self.__get_retention_interval('h')
             if up_to is None:
                 logging.debug('nothing to delete in mem for %s' % (container))
             for elt in list(contproc.keys()):
