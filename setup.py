@@ -75,9 +75,7 @@ setup(
                      ],
     scripts=[
             'bc_api.py',
-            'bc_web.py',
-            'bc_analyse.py',
-            'bc_retention.py',
+            'bc_web_record.py',
             'bc_db.py',
             'bc_record.py'
     ],

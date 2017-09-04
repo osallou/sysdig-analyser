@@ -128,23 +128,23 @@ Delete from database old records (older than BC_RETENTION_XX seconds)
 
 ## development
 
-    python bc_web.py
+    python bc_web_record.py
 
 ## production
 
     rm -rf ..path_to/prometheus-multiproc
     mkdir -p ..path_to/prometheus-multiproc
     export prometheus_multiproc_dir=..path_to/prometheus-multiproc
-    gunicorn -c ../path_to/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
+    gunicorn -c ../path_to/gunicorn_conf.py --bind 0.0.0.0 bc_web_record:app
 
 ## in docker
 
     docker build -t osallou/bubble-web .
-    docker run -p 80:8000 -d -e CASSANDRA_HOST="192.168.101.131" -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
+    docker run -p 80:8000 -d -e CASSANDRA_HOST="192.168.101.131" -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web_record:app
 
 Optionally add --link to your cassandra docker cluster:
 
-    docker run -p 80:8000 -d -e CASSANDRA_HOST="mycassandra" --link mycassandra:mycassandra -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web:app
+    docker run -p 80:8000 -d -e CASSANDRA_HOST="mycassandra" --link mycassandra:mycassandra -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web_record:app
 
 Other env vars:
 
