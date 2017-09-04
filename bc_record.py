@@ -289,7 +289,7 @@ class RetentionHandler(object):
             self.__delete_old(container)
         else:
             now = datetime.datetime.now()
-            last_delete_date = datetime.datetime.fromtimestamp(int(last_delete))
+            last_delete_date = datetime.datetime.fromtimestamp(float(last_delete))
             if last_delete_date < now - datetime.timedelta(seconds=60*10):
                 self.__delete_old(container)
 
