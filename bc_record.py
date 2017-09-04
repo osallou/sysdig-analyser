@@ -357,6 +357,7 @@ class RetentionHandler(object):
                         'start':  long(content['ts'])/1000000,
                         'is_root': is_root
                     }
+                    logging.debug('Record event, container=%s, ts=%s' % (event['container'], str(event['start'])))
                     self.__cassandra_update_procs(event)
                     self.__cassandra_update_cpu(event)
                     self.__cassandra_update_mem(event)
