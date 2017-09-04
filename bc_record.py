@@ -233,7 +233,7 @@ class RetentionHandler(object):
         )
 
     def __delete_old(self, container):
-        self.logging.debug('Request cleanup of %s' % (container))
+        logging.debug('Request cleanup of %s' % (container))
         try:
             self.channel.basic_publish(
                 exchange='',
