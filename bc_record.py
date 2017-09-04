@@ -34,6 +34,9 @@ class RetentionHandler(object):
         self.redis_client = redis.Redis(host=redis_host, port=redis_port)
 
     def __get_retention_interval(self, retention):
+        '''
+        Return timestamp (ms) interval before which events should be deleted
+        '''
         up_to = None
         retention_seconds = None
         if retention == 's':
@@ -48,7 +51,7 @@ class RetentionHandler(object):
         if retention_seconds is None:
             return None
         up_to = datetime.datetime.now() - datetime.timedelta(seconds=retention_seconds)
-        return time.mktime(up_to.timetuple())
+        return time.mktime(up_to.timetuple())*1000
 
     def __cassandra_update_procs(self, event):
         '''
@@ -86,7 +89,7 @@ class RetentionHandler(object):
     def __cassandra_update_per_cpu(self, event):
         if not event:
             return
-        start = datetime.datetime.fromtimestamp(event['start'])
+        start = datetime.datetime.fromtimestamp(event['start']/1000)
         start_m = start.replace(second=0)
         start_h = start_m.replace(minute=0)
         start_d = start_h.replace(hour=0)
@@ -96,7 +99,7 @@ class RetentionHandler(object):
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
             """,
-            (event['duration'], time.mktime(start.timetuple()), int(event['proc']), event['cpu'], event['container'])
+            (event['duration'], time.mktime(start.timetuple()*1000), int(event['proc']), event['cpu'], event['container'])
         )
         self.session.execute(
             """
@@ -104,7 +107,7 @@ class RetentionHandler(object):
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
             """,
-            (event['duration'], time.mktime(start_m.timetuple()), int(event['proc']), event['cpu'], event['container'])
+            (event['duration'], time.mktime(start_m.timetuple()*1000), int(event['proc']), event['cpu'], event['container'])
         )
         self.session.execute(
             """
@@ -112,7 +115,7 @@ class RetentionHandler(object):
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
             """,
-            (event['duration'], time.mktime(start_h.timetuple()), int(event['proc']), event['cpu'], event['container'])
+            (event['duration'], time.mktime(start_h.timetuple()*1000), int(event['proc']), event['cpu'], event['container'])
         )
         self.session.execute(
             """
@@ -120,13 +123,13 @@ class RetentionHandler(object):
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
             """,
-            (event['duration'], time.mktime(start_d.timetuple()), int(event['proc']), event['cpu'], event['container'])
+            (event['duration'], time.mktime(start_d.timetuple()*1000), int(event['proc']), event['cpu'], event['container'])
         )
 
     def __cassandra_update_cpu_all(self, event):
         if not event:
             return
-        start = datetime.datetime.fromtimestamp(event['start'])
+        start = datetime.datetime.fromtimestamp(event['start']/1000)
         start_m = start.replace(second=0)
         start_h = start_m.replace(minute=0)
         start_d = start_h.replace(hour=0)
@@ -145,7 +148,7 @@ class RetentionHandler(object):
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s and container=%s
             """,
-            (event['duration'], time.mktime(start.timetuple()), int(event['proc']), event['container'])
+            (event['duration'], time.mktime(start.timetuple())*1000, int(event['proc']), event['container'])
         )
         self.session.execute(
             """
@@ -153,7 +156,7 @@ class RetentionHandler(object):
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s and container=%s
             """,
-            (event['duration'], time.mktime(start_m.timetuple()), int(event['proc']), event['container'])
+            (event['duration'], time.mktime(start_m.timetuple())*1000, int(event['proc']), event['container'])
         )
         self.session.execute(
             """
@@ -161,7 +164,7 @@ class RetentionHandler(object):
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s and container=%s
             """,
-            (event['duration'], time.mktime(start_h.timetuple()), int(event['proc']), event['container'])
+            (event['duration'], time.mktime(start_h.timetuple())*1000, int(event['proc']), event['container'])
         )
         self.session.execute(
             """
@@ -169,7 +172,7 @@ class RetentionHandler(object):
             SET duration = duration + %s
             WHERE ts=%s AND proc_id=%s and container=%s
             """,
-            (event['duration'], time.mktime(start_d.timetuple()), int(event['proc']), event['container'])
+            (event['duration'], time.mktime(start_d.timetuple())*1000, int(event['proc']), event['container'])
         )
 
     def __cassandra_update_cpu(self, event):
@@ -179,7 +182,7 @@ class RetentionHandler(object):
     def __cassandra_update_mem(self, event):
         if not event:
             return
-        start = datetime.datetime.fromtimestamp(event['start'])
+        start = datetime.datetime.fromtimestamp(event['start']/1000)
         start_m = start.replace(second=0)
         start_h = start_m.replace(minute=0)
         start_d = start_h.replace(hour=0)
@@ -191,7 +194,7 @@ class RetentionHandler(object):
                 vm_swap = %s
             WHERE ts=%s AND proc_id=%s AND container=%s
             """,
-            (event['vm_size'], event['vm_rss'], event['vm_swap'], time.mktime(start.timetuple()), event['proc'], event['container'])
+            (event['vm_size'], event['vm_rss'], event['vm_swap'], time.mktime(start.timetuple())*1000, event['proc'], event['container'])
         )
         self.session.execute(
             """
@@ -201,7 +204,7 @@ class RetentionHandler(object):
                 vm_swap = %s
             WHERE ts=%s AND proc_id=%s AND container=%s
             """,
-            (event['vm_size'], event['vm_rss'], event['vm_swap'], time.mktime(start_d.timetuple()), event['proc'], event['container'])
+            (event['vm_size'], event['vm_rss'], event['vm_swap'], time.mktime(start_d.timetuple())*1000, event['proc'], event['container'])
         )
         self.session.execute(
             """
@@ -211,7 +214,7 @@ class RetentionHandler(object):
                 vm_swap = %s
             WHERE ts=%s AND proc_id=%s AND container=%s
             """,
-            (event['vm_size'], event['vm_rss'], event['vm_swap'], time.mktime(start_h.timetuple()), event['proc'], event['container'])
+            (event['vm_size'], event['vm_rss'], event['vm_swap'], time.mktime(start_h.timetuple())*1000, event['proc'], event['container'])
         )
         self.session.execute(
             """
@@ -221,7 +224,7 @@ class RetentionHandler(object):
                 vm_swap = %s
             WHERE ts=%s AND proc_id=%s AND container=%s
             """,
-            (event['vm_size'], event['vm_rss'], event['vm_swap'], time.mktime(start_d.timetuple()), event['proc'], event['container'])
+            (event['vm_size'], event['vm_rss'], event['vm_swap'], time.mktime(start_d.timetuple())*1000, event['proc'], event['container'])
         )
 
     def __get_cont_proc(self, container):
