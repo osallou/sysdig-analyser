@@ -143,6 +143,7 @@ class RetentionHandler(object):
             rt = json.loads(body)
             content = rt['event']
             logging.debug('Message: %s' % (content))
+            logging.warn('Delete request for %s' % content['container'])
             self.__delete_old(content['container'])
         except Exception as e:
             logging.exception("Failed to handle retention query: " + str(e))
@@ -166,6 +167,8 @@ def listen(host, cluster, rabbit, debug):
 
     if debug:
         logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
 
     if 'CASSANDRA_HOST' in os.environ:
         host_list = [os.environ['CASSANDRA_HOST']]
