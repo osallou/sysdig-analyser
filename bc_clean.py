@@ -44,12 +44,12 @@ class RetentionHandler(object):
             retention_seconds = 3600
             if 'BC_RETENTION_SECONDS' in os.environ:
                 retention_seconds = os.environ['BC_RETENTION_SECONDS']
-        elif retention == 'h':
+        elif retention == 'm':
             # 2d
             retention_seconds = 3600 * 24 * 2
             if 'BC_RETENTION_MINUTES' in os.environ:
                 retention_seconds = os.environ['BC_RETENTION_MINUTES']
-        elif retention == 'm':
+        elif retention == 'h':
             # 120d
             retention_seconds = 3600 * 24 * 120
             if 'BC_RETENTION_HOURS' in os.environ:

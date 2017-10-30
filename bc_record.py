@@ -43,10 +43,10 @@ class RetentionHandler(object):
         if retention == 's':
             # 1h
             retention_seconds = 3600
-        elif retention == 'h':
+        elif retention == 'm':
             # 2d
             retention_seconds = 3600 * 24 * 2
-        elif retention == 'm':
+        elif retention == 'h':
             # 120d
             retention_seconds = 3600 * 24 * 120
         if retention_seconds is None:

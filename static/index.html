@@ -6,10 +6,15 @@
     <script src="bower_components/vis/dist/vis.min.js"></script>
     <script src="bower_components/datatables.net/js/jquery.dataTables.min.js"></script>
     <script src="bower_components/datatables/media/js/dataTables.bootstrap.min.js"></script>
+    <!--<script src="bower_components/seiyria-bootstrap-slider/dist/bootstrap-slider.min.js"></script>-->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.9.0/bootstrap-slider.min.js"></script>
     <link href="bower_components/bootstrap/dist/css/bootstrap.min.css" type="text/css" rel="stylesheet"/>
     <link href="metrics-graphics-2.11.0/dist/metricsgraphics.css" type="text/css" rel="stylesheet"/>
     <link href="bower_components/vis/dist/vis.min.css" type="text/css" rel="stylesheet"/>
     <link href="bower_components/datatables/media/css/dataTables.bootstrap.min.css" type="text/css" rel="stylesheet"/>
+    <!--$<link href="bower_components/seiyria-bootstrap-slider/dist/css/bootstrap-slider.min.css" type="text/css" rel="stylesheet"/>-->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.9.0/css/bootstrap-slider.min.css" type="text/css" rel="stylesheet"/>
+
     <style>
         .glyphicon-refresh-animate {
             -animation: spin .7s infinite linear;
@@ -67,7 +72,16 @@
 
         <div class="row" id="msg"></div>
 
-
+        <div class="row" id="time_tab">
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    Time selector
+                </div>
+                <div class="panel-body">
+                    <input id="time_selector" data-slider-id='time_selector' type="text"/>
+                </div>
+            </div>
+        </div>
 
         <div class="row" id="cpu_tab">
             <div class="panel panel-primary">
@@ -173,9 +187,13 @@
         for(var key in container_memory){
             var procdata = [];
             for(var i=0;i<container_memory[key].length;i++){
+                var key_ts = new Date(container_memory[key][i]["ts"] / 1000000).getTime();
+                if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
+                    continue;
+                }
                 procs[key] = container_memory[key][i]["proc_name"]
                     procdata.push({
-                        "date": new Date((container_memory[key][i]["ts"] / 1000000)),
+                        "date": new Date(container_memory[key][i]["ts"] / 1000000),
                         "value": container_memory[key][i]["value"][0] * 1000
                     });
             }
@@ -205,6 +223,10 @@
         var cpu_list = [];
         var groups = [{"id": "cpu", "content": "cpu"}];
         for(var i=0;i<data[proc_id].length;i++){
+            var key_ts = new Date(data[proc_id][i]["ts"] * 1000).getTime();
+            if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
+                continue;
+            }
             procs.push(proc_id);
             /*
             if(cpu_list.indexOf(data[proc_id][i]['cpu'])==-1) {
@@ -212,7 +234,7 @@
                 cpu_list.push(data[proc_id][i]['cpu']);
             }
             */
-            metric = {"x": new Date((data[proc_id][i]["ts"]*1000)), "y": data[proc_id][i]["duration"] * 100 / (1000000000 * sub), "group": "cpu"}
+            metric = {"x": new Date(data[proc_id][i]["ts"]*1000), "y": data[proc_id][i]["duration"] * 100 / (1000000000 * sub), "group": "cpu"}
             cpu_data.push(metric);
 
         }
@@ -236,14 +258,24 @@
         var procs = [];
         var groups = [];
         for(var key in data){
-            procs.push(key);
-
-            groups.push({"id": key, "content": proc_list[key]+"("+key+")"})
+            var ok = false;
             for(var i=0;i<data[key].length;i++){
-                metric = {"x": new Date((data[key][i]["ts"]*1000)), "y": data[key][i]["duration"] * 100 / (1000000000 * sub), "group": key}
+                var key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
+                if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
+                    continue;
+                }
+                if(min==null || key_ts<min){min=key_ts;}
+                if(max==null || key_ts>max){max=key_ts;}
+                ok = true;
+                metric = {"x": new Date(data[key][i]["ts"]*1000), "y": data[key][i]["duration"] * 100 / (1000000000 * sub), "group": key}
                 cpu_data.push(metric);
             }
+            if(ok) {
+                procs.push(key);
+                groups.push({"id": key, "content": proc_list[key]+"("+key+")"});
+            }
         }
+        time_selection();
         return {"data": cpu_data, "groups": groups, "procs": procs};
     }
 
@@ -252,11 +284,19 @@
         var procs = [];
         var groups = [];
         for(var key in data){
-            procs.push(key);
-            groups.push({"id": key, "content": proc_list[key]+"("+key+")"})
+            var ok = false;
             for(var i=0;i<data[key].length;i++){
-                metric = {"x": new Date((data[key][i]["ts"]*1000)), "y": data[key][i]["vm_size"]/1000, "group": key}
+                var key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
+                if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
+                    continue;
+                }
+                ok = true;
+                metric = {"x": new Date(data[key][i]["ts"]*1000), "y": data[key][i]["vm_size"]/1000, "group": key}
                 mem_data.push(metric);
+            }
+            if(ok){
+                procs.push(key);
+                groups.push({"id": key, "content": proc_list[key]+"("+key+")"});
             }
         }
         return {"data": mem_data, "groups": groups, "procs": procs};
@@ -272,11 +312,20 @@
                     continue;
                 }
             }
-            procs.push(key);
-            groups.push({"id": key, "content": key})
+            var ok = false;
+
             for(var i=0;i<data[key].length;i++){
-                metric = {"x": new Date((data[key][i]["ts"]*1000)), "y": (data[key][i]["io_in"]+data[key][i]["io_out"])/1000, "group": key}
+                var key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
+                if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
+                    continue;
+                }
+                ok = true;
+                metric = {"x": new Date(data[key][i]["ts"]*1000), "y": (data[key][i]["io_in"]+data[key][i]["io_out"])/1000, "group": key}
                 io_data.push(metric);
+            }
+            if(ok){
+                procs.push(key);
+                groups.push({"id": key, "content": key});
             }
         }
         return {"data": io_data, "groups": groups, "procs": procs};
@@ -497,6 +546,10 @@
     });
 
     var interval = 's';
+    var filter_min=null;
+    var filter_max=null;
+    var max = null;
+    var min=null;
 
     $("#show_cpu_s").click(function(){
         interval = 's';
@@ -542,6 +595,36 @@
 }
 
 
+    function to_time(val) {
+        if (Array.isArray(val)) {
+            return new Date(val[0]) + " : " + new Date(val[1]);
+        } else {
+            return new Date(val);
+        }
+    }
+    function on_time_change(new_val) {
+       filter_min = new_val[0];
+       filter_max = new_val[1];
+       load_proc($.urlParam('container'), interval);
+    }
+
+    function time_selection() {
+        var time_selector = $("#time_selector").bootstrapSlider();
+        var now = new Date();
+
+        if(filter_min==null){filter_min=min;}
+        if(filter_max==null){filter_max=max;}
+        var range = [filter_min, filter_max];
+        time_selector.bootstrapSlider('setAttribute', 'range', true);
+        time_selector.bootstrapSlider('setAttribute', 'max', max);
+        time_selector.bootstrapSlider('setAttribute', 'min', min);
+        time_selector.bootstrapSlider('setAttribute', 'step', 10);
+        time_selector.bootstrapSlider('setAttribute', 'formatter', to_time);
+        time_selector.bootstrapSlider('setValue', range);
+        time_selector.bootstrapSlider('on', 'slideStop', on_time_change);
+
+    }
+
     var token = 'fake';
     $(document).ready(function(){
         if($.urlParam('container') == 0) {
@@ -553,9 +636,10 @@
             $("#proc_loading").hide();
             return;
         }
-
+        interval = 's';
         token = $.urlParam('token');
         load_proc($.urlParam('container'),'s');
+
     });
 
     </script>
