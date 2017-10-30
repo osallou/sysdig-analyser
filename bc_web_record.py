@@ -291,20 +291,70 @@ def __cassandra_select_mem(container, interval='s', top=10):
 
     return result
 
-def __cassandra_select_io(container, proc_id=None):
+
+def __cassandra_select_io_ts(container, proc_id, interval='s', top=10):
+    table = 'io';
+    if interval == 'm':
+        table = 'io_per_m';
+    if interval == 'h':
+        table = 'io_per_h';
+    if interval == 'd':
+        table = 'io_per_d';
     result = {}
-    rows = session.execute("SELECT * FROM io_all WHERE container='"+container+"'");
+    rows = session.execute("SELECT * FROM " + table + " WHERE container='"+container+"'");
+
+    top_procs = {}
+    tmp_result = {}
     for row in rows:
-        if proc_id and proc_id!=row.proc_id:
+        if proc_id and proc_id != row.proc_id:
             continue
-        if row.proc_id not in result:
-            result[row.proc_id] = []
-        result[row.proc_id].append({
-            'file_name': row.file_name,
-            'proc_id': row.proc_id,
+        res = {
+            'ts': time.mktime(row.ts.timetuple()),
             'io_in': row.io_in,
-            'io_out': row.io_out
-        })
+            'io_out': row.io_out,
+            'file_name': row.file_name,
+            'proc_name': row.proc_id
+        }
+        uid = row.file_name
+
+        if uid not in top_procs:
+            top_procs[uid] = 0
+        top_procs[uid] += row.io_in + row.io_out
+
+        if uid not in tmp_result:
+            tmp_result[uid] = []
+
+        tmp_result[uid].append(res)
+
+    proc_array = []
+    for file_id in list(top_procs.keys()):
+        proc_array.append({'id': file_id, 'io': top_procs[file_id]})
+    proc_array.sort(key=lambda x: x['io'], reverse=True)
+    if len(proc_array) < top:
+        result = tmp_result
+    else:
+        for proc in proc_array[0:top]:
+            result[proc['id']] = tmp_result[proc['id']]
+
+    return result
+
+def __cassandra_select_io(container, proc_id=None, interval=None, top=10):
+    result = {}
+    if interval is None:
+        rows = session.execute("SELECT * FROM io_all WHERE container='"+container+"'");
+        for row in rows:
+            if proc_id and proc_id!=row.proc_id:
+                continue
+            if row.proc_id not in result:
+                result[row.proc_id] = []
+            result[row.proc_id].append({
+                'file_name': row.file_name,
+                'proc_id': row.proc_id,
+                'io_in': row.io_in,
+                'io_out': row.io_out
+            })
+    else:
+        result = __cassandra_select_io_ts(container, proc_id, interval, top)
     return result
 
 def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
@@ -322,15 +372,15 @@ def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
         table = 'cpu_per_d';
         table_all = 'cpu_all_per_d'
     if proc_id:
-        rows = session.execute("SELECT * FROM " + table + " WHERE container='"+container+"' AND proc_id="+str(proc_id))
+        rows = session.execute("SELECT * FROM " + table_all + " WHERE container='"+container+"' AND proc_id="+str(proc_id))
         for row in rows:
             res = {
                 'proc_name': row.proc_id,
                 'ts': time.mktime(row.ts.timetuple()),
                 'duration': row.duration,
             }
-            if proc_id:
-                res['cpu'] = row.cpu
+            #if proc_id:
+            #    res['cpu'] = row.cpu
             if res['proc_name'] not in result:
                 result[res['proc_name']] = []
 
@@ -434,7 +484,13 @@ def container_io(cid):
     res = check_auth(cid)
     if not res:
         return "not authorized", 401
-    return jsonify(__cassandra_select_io(cid))
+    interval = request.args.get('interval')
+    top_res = request.args.get('top')
+    if top_res is None:
+        top_res = top_n
+    else:
+        top_res = int(top_res)
+    return jsonify(__cassandra_select_io(cid, interval=interval, top=top_res))
 
 
 @app.route("/event", methods=['POST'])

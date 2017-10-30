@@ -133,10 +133,28 @@ class RetentionHandler(object):
                 proc_id = int(proc_id)
                 self.__cassandra_delete(table, container, proc_id, up_to)
 
+    def __cassandra_delete_io(self, container):
+        contproc = self.__get_cont_proc(container)
+        for table in ['io', 'io_per_m', 'io_per_h']:
+            up_to = None
+            if table == 'io':
+                up_to = self.__get_retention_interval('s')
+            elif table ==  'io_per_m':
+                up_to = self.__get_retention_interval('m')
+            elif table ==  'io_per_h':
+                up_to = self.__get_retention_interval('h')
+            if up_to is None:
+                logging.debug('nothing to delete in io for %s' % (container))
+            for elt in list(contproc.keys()):
+                (container, proc_id) = elt.split(':')
+                proc_id = int(proc_id)
+                self.__cassandra_delete(table, container, proc_id, up_to)
+
     def __delete_old(self, container):
         self.__cassandra_delete_cpu(container)
         self.__cassandra_delete_cpu_all(container)
         self.__cassandra_delete_mem(container)
+        self.__cassandra_delete_io(container)
 
     def callback_clean(self, ch, method, properties, body):
         try:

@@ -87,6 +87,46 @@ class RetentionHandler(object):
             (event['in'], event['out'], event['proc'], event['name'], event['container'])
         )
 
+        start = datetime.datetime.fromtimestamp(event['start']/1000)
+        start_m = start.replace(second=0)
+        start_h = start_m.replace(minute=0)
+        start_d = start_h.replace(hour=0)
+        self.session.execute(
+            """
+            UPDATE io
+            SET io_in = io_in + %s,
+                io_out = io_out + %s
+            WHERE proc_id=%s AND ts=%s AND file_name=%s AND container=%s
+            """,
+            (event['in'], event['out'], event['proc'], self.__get_ts(start), event['name'], event['container'])
+        )
+        self.session.execute(
+            """
+            UPDATE io_per_m
+            SET io_in = io_in + %s,
+                io_out = io_out + %s
+            WHERE proc_id=%s AND ts=%s AND file_name=%s AND container=%s
+            """,
+            (event['in'], event['out'], event['proc'], self.__get_ts(start_m), event['name'], event['container'])
+        )
+        self.session.execute(
+            """
+            UPDATE io_per_h
+            SET io_in = io_in + %s,
+                io_out = io_out + %s
+            WHERE proc_id=%s AND ts=%s AND file_name=%s AND container=%s
+            """,
+            (event['in'], event['out'], event['proc'], self.__get_ts(start_h), event['name'], event['container'])
+        )
+        self.session.execute(
+            """
+            UPDATE io_per_d
+            SET io_in = io_in + %s,
+                io_out = io_out + %s
+            WHERE proc_id=%s AND ts=%s AND file_name=%s AND container=%s
+            """,
+            (event['in'], event['out'], event['proc'], self.__get_ts(start_d), event['name'], event['container'])
+        )
 
     def __get_ts(self, event_date):
         return int(time.mktime(event_date.timetuple())*1000)
@@ -247,6 +287,17 @@ class RetentionHandler(object):
                 ))
         except Exception as e:
             logging.exception('Failed to send clean event: ' + str(e))
+        # container is still active, mark as active with 1h expiration
+        # status will expire in 1h. After 1h without any event, container is "inactive"
+        self.session.execute(
+                    """
+                    UPDATE container
+                    USING TTL 3600
+                    SET status = %s,
+                    WHERE id=%s
+                    """,
+                    (1, event['container'])
+                )
 
     def __cleanup(self, container):
         last_delete = self.redis_client.get('bc:' + container + ':last_delete')
@@ -258,11 +309,15 @@ class RetentionHandler(object):
             if last_delete_date < now - datetime.timedelta(seconds=60*10):
                 self.__delete_old(container)
 
+
     def callback_record(self, ch, method, properties, body):
         try:
             rt = json.loads(body)
             content = rt['event']
             logging.debug('Message: %s' % (content))
+            if content is None or 'evt_type' not in content:
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                return
             if content['evt_type'] == 'fd':
                 for data in content['data']:
                     # event['in'], event['out'], event['proc'], event['name'], event['container']

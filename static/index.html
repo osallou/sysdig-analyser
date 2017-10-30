@@ -5,6 +5,7 @@
     <script src="metrics-graphics-2.11.0/dist/metricsgraphics.min.js"></script>
     <script src="bower_components/vis/dist/vis.min.js"></script>
     <script src="bower_components/datatables.net/js/jquery.dataTables.min.js"></script>
+    <script src="bower_components/datatables/media/js/dataTables.bootstrap.min.js"></script>
     <link href="bower_components/bootstrap/dist/css/bootstrap.min.css" type="text/css" rel="stylesheet"/>
     <link href="metrics-graphics-2.11.0/dist/metricsgraphics.css" type="text/css" rel="stylesheet"/>
     <link href="bower_components/vis/dist/vis.min.css" type="text/css" rel="stylesheet"/>
@@ -47,6 +48,15 @@
             <li><a href="#memory_tab">Memory</a></li>
             <li><a href="#proc_tab">Processes</a></li>
             <li><a href="#io_tab">IO</a></li>
+            <li class="dropdown">
+                <a href="#"  data-toggle="dropdown" class="dropdown-toggle">Time scale <b class="caret"></b></a>
+                <ul class="dropdown-menu">
+                    <li><a href="#" id="show_cpu_s">seconds</a></li>
+                    <li><a href="#" id="show_cpu_m">minutes</a></li>
+                    <li><a href="#" id="show_cpu_h">hours</a></li>
+                    <li><a href="#" id="show_cpu_d">days</a></li>
+                </ul>
+            </li>
           </ul>
 
         </div><!-- /.navbar-collapse -->
@@ -57,17 +67,12 @@
 
         <div class="row" id="msg"></div>
 
-        <div class="row">
-            <button class="btn btn-primary" id="show_cpu_s">seconds</button>
-            <button class="btn btn-primary" id="show_cpu_m">minutes</button>
-            <button class="btn btn-primary" id="show_cpu_h">hours</button>
-            <button class="btn btn-primary" id="show_cpu_d">days</button>
-        </div>
+
 
         <div class="row" id="cpu_tab">
             <div class="panel panel-primary">
                 <div class="panel-heading">
-                    Top CPU <button id="cpu_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button>
+                    Top CPU (% of cpu, 100=1CPU)<button id="cpu_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button>
                 </div>
                 <div class="panel-body">
                     <div class="row">
@@ -105,6 +110,17 @@
                 <div class="panel-body">
                         <div class="row">
                             <div id="mychart_mem"></div>
+                        </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" id="io_interval_tab">
+            <div class="panel panel-primary">
+                <div class="panel-heading">IO <button id="io_interval_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button><br/><input type="checkbox" id="io_system"> Include system IO</div>
+                <div class="panel-body">
+                        <div class="row">
+                            <div id="mychart_io_interval"></div>
                         </div>
                 </div>
             </div>
@@ -153,14 +169,14 @@
         var container_memory = data.containers.competent_thompson.memory;
         memory_processes = [];
         memory_data = [];
-        procs = {}
+        procs = {};
         for(var key in container_memory){
             var procdata = [];
             for(var i=0;i<container_memory[key].length;i++){
-                procs[key] = container_memory[key][i]['proc_name']
+                procs[key] = container_memory[key][i]["proc_name"]
                     procdata.push({
-                        "date": new Date((container_memory[key][i]['ts'] / 1000000)),
-                        "value": container_memory[key][i]['value'][0] * 1000
+                        "date": new Date((container_memory[key][i]["ts"] / 1000000)),
+                        "value": container_memory[key][i]["value"][0] * 1000
                     });
             }
             memory_data.push(procdata);
@@ -168,18 +184,18 @@
         for(var procid in procs){
             memory_processes.push(procs[procid]);
         }
-        return {'data': memory_data, 'procs': memory_processes}
+        return {"data": memory_data, "procs": memory_processes}
     }
 
     function get_per_cpu(data, proc_id){
         var sub = 1;
-        if(interval == 'm') {
+        if(interval == "m") {
             sub = 60;
         }
-        else if (interval == 'h') {
+        else if (interval == "h") {
             sub = 3600;
         }
-        else if (interval == 'd') {
+        else if (interval == "d") {
             sub = 3600 * 24;
         }
 
@@ -187,29 +203,32 @@
         var procs = [];
         var groups = [];
         var cpu_list = [];
+        var groups = [{"id": "cpu", "content": "cpu"}];
         for(var i=0;i<data[proc_id].length;i++){
             procs.push(proc_id);
+            /*
             if(cpu_list.indexOf(data[proc_id][i]['cpu'])==-1) {
                 groups.push({'id': data[proc_id][i]['cpu'], "content": "cpu" + data[proc_id][i]['cpu']})
                 cpu_list.push(data[proc_id][i]['cpu']);
             }
-            metric = {'x': new Date((data[proc_id][i]['ts']*1000)), 'y': data[proc_id][i]['duration'] * 100 / (1000000000 * sub), 'group': data[proc_id][i]['cpu']}
+            */
+            metric = {"x": new Date((data[proc_id][i]["ts"]*1000)), "y": data[proc_id][i]["duration"] * 100 / (1000000000 * sub), "group": "cpu"}
             cpu_data.push(metric);
 
         }
-        return {'data': cpu_data, 'groups': groups, 'procs': procs};
+        return {"data": cpu_data, "groups": groups, "procs": procs};
     }
 
 
     function get_cpu_all(data){
         var sub = 1;
-        if(interval == 'm') {
+        if(interval == "m") {
             sub = 60;
         }
-        else if (interval == 'h') {
+        else if (interval == "h") {
             sub = 3600;
         }
-        else if (interval == 'd') {
+        else if (interval == "d") {
             sub = 3600 * 24;
         }
 
@@ -219,13 +238,13 @@
         for(var key in data){
             procs.push(key);
 
-            groups.push({'id': key, "content": proc_list[key]+"("+key+")"})
+            groups.push({"id": key, "content": proc_list[key]+"("+key+")"})
             for(var i=0;i<data[key].length;i++){
-                metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['duration'] * 100 / (1000000000 * sub), 'group': key}
+                metric = {"x": new Date((data[key][i]["ts"]*1000)), "y": data[key][i]["duration"] * 100 / (1000000000 * sub), "group": key}
                 cpu_data.push(metric);
             }
         }
-        return {'data': cpu_data, 'groups': groups, 'procs': procs};
+        return {"data": cpu_data, "groups": groups, "procs": procs};
     }
 
     function get_mem(data){
@@ -234,33 +253,63 @@
         var groups = [];
         for(var key in data){
             procs.push(key);
-            groups.push({'id': key, "content": proc_list[key]+"("+key+")"})
+            groups.push({"id": key, "content": proc_list[key]+"("+key+")"})
             for(var i=0;i<data[key].length;i++){
-                metric = {'x': new Date((data[key][i]['ts']*1000)), 'y': data[key][i]['vm_size']/1000, 'group': key}
+                metric = {"x": new Date((data[key][i]["ts"]*1000)), "y": data[key][i]["vm_size"]/1000, "group": key}
                 mem_data.push(metric);
             }
         }
-        return {'data': mem_data, 'groups': groups, 'procs': procs};
+        return {"data": mem_data, "groups": groups, "procs": procs};
+    }
+
+    function get_io(data){
+        var io_data = [];
+        var procs = [];
+        var groups = [];
+        for(var key in data){
+            if(! $('#io_system').is(':checked')) {
+                if(key.startsWith('/etc') || key.startsWith('/usr') || key.startsWith('/lib')) {
+                    continue;
+                }
+            }
+            procs.push(key);
+            groups.push({"id": key, "content": key})
+            for(var i=0;i<data[key].length;i++){
+                metric = {"x": new Date((data[key][i]["ts"]*1000)), "y": (data[key][i]["io_in"]+data[key][i]["io_out"])/1000, "group": key}
+                io_data.push(metric);
+            }
+        }
+        return {"data": io_data, "groups": groups, "procs": procs};
     }
 
     function get_procs(data){
         // var proc_selection = "";
         var proc_info = "";
-        var result = {'nodes': [], 'edges': []}
+        var result = {"nodes": [], "edges": []}
         treenode = {}
         var parent = 1;
+        var parent_name = null;
         for(var i=0;i<data.length;i++){
             var dataelt = data[i];
-            if(dataelt['is_root'] == 1) {
-                parent = dataelt['id']
+            if($.urlParam("root") != 0) {
+                if(dataelt["name"] == $.urlParam("root")){
+                    parent = dataelt["id"];
+                    dataelt["is_root"] = 1;
+                }
+                else {
+                    dataelt["is_root"] =0;
+                }
             }
-            proc_info += "<tr><td>" + dataelt['id']+ "</td><td>" + dataelt['exe'] + "</td><td>" + dataelt['args'] + "</td></tr>";
+            else if(dataelt["is_root"] == 1) {
+                parent = dataelt["id"];
+            }
+            proc_info += "<tr><td>" + dataelt["id"]+ "</td><td>" + dataelt["exe"] + "</td><td>" + dataelt["args"] + "</td></tr>";
             var dataelt = data[i];
-            proc_list[dataelt['id']] = dataelt['name'];
-            if(treenode[dataelt['parent']]==undefined){
-                treenode[dataelt['parent']] = [];
+            proc_list[dataelt["id"]] = dataelt["name"];
+            if(treenode[dataelt["parent"]]==undefined){
+                treenode[dataelt["parent"]] = [];
             }
-            treenode[dataelt['parent']].push({'id': dataelt['id'], 'name': dataelt['name']});
+            treenode[dataelt["parent"]].push({"id": dataelt["id"], "name": dataelt["name"],"is_root": dataelt["is_root"]});
         }
 
         var root = treenode[parent];
@@ -270,12 +319,17 @@
             return result;
         }
 
+
         for(var key in treenode) {
             var elt = treenode[key];
             for(var j=0;j<elt.length;j++){
                 var subchild = elt[j];
-                result['nodes'].push({'id':  subchild['id'], 'label':  proc_list[subchild['id']]+"("+ subchild['id']+")"});
-                result['edges'].push({'from': key, 'to': subchild['id'], arrows:'to'});
+                var node = {"id":  subchild["id"], "label":  proc_list[subchild["id"]]+"("+ subchild["id"]+")"};
+                if(subchild["is_root"]) {
+                    node['color'] ="red";
+                }
+                result["nodes"].push(node);
+                result["edges"].push({"from": key, "to": subchild["id"], arrows:"to"});
             }
         }
 
@@ -287,7 +341,7 @@
     }
 
     function load_io(container){
-        d3.json('/container/'+container+'/io').header('Authorization', 'token ' + token).get(function(data) {
+        d3.json("/container/"+container+"/io").header("Authorization", "token " + token).get(function(data) {
             var io_list = "";
             for(var key in data){
                 for(var i=0;i<data[key].length;i++){
@@ -301,6 +355,25 @@
         });
     }
 
+    function load_io_interval(container) {
+        d3.json("/container/"+container+"/io" + '?interval=' + interval).header("Authorization", "token " + token).get(function(data) {
+            $("#mychart_io_interval").html("");
+            $("#io_interval_loading").hide();
+            var io = get_io(data);
+
+            var container = document.getElementById('mychart_io_interval');
+            var dataset = new vis.DataSet(io.data);
+            var options = {
+                style: 'bar',
+                stack: false,
+                drawPoints: false,
+                legend: true,
+            };
+            var graph2d = new vis.Graph2d(container, dataset, io.groups, options);
+
+        });
+    }
+
 
     function load_per_cpu(container, proc_id){
         d3.json('/container/'+container+'/cpu/' + proc_id + '?interval=' + interval).header('Authorization', 'token ' + token).get( function(data) {
@@ -311,7 +384,7 @@
             var container = document.getElementById('mychart_cpu_details');
             var dataset = new vis.DataSet(cpu_data.data);
             var options = {
-                style: 'bar',
+                style: 'line',
                 stack: true,
                 drawPoints: false,
                 legend: true,
@@ -330,7 +403,7 @@
             var container = document.getElementById('mychart_cpu0');
             var dataset = new vis.DataSet(cpu0.data);
             var options = {
-                style: 'bar',
+                style: 'line',
                 stack: true,
                 drawPoints: false,
                 legend: true,
@@ -357,7 +430,7 @@
             var container = document.getElementById('mychart_mem');
             var dataset = new vis.DataSet(mem.data);
             var options = {
-                style: 'bar',
+                style: 'line',
                 stack: true,
                 drawPoints: false,
                 legend: true,
@@ -383,6 +456,7 @@
             }
             var procs = get_procs(data['data']);
             load_io(container_id);
+            load_io_interval(container_id);
             top_procs = load_cpu(container_id);
             top_mem = load_mem(container_id);
             var container = document.getElementById('procs_relationship');
@@ -428,26 +502,33 @@
         interval = 's';
         load_cpu($.urlParam('container'));
         load_mem($.urlParam('container'));
+        load_io_interval($.urlParam('container'));
     });
 
     $("#show_cpu_m").click(function(){
         interval = 'm';
         load_cpu($.urlParam('container'));
         load_mem($.urlParam('container'));
+        load_io_interval($.urlParam('container'));
     });
 
     $("#show_cpu_h").click(function(){
         interval = 'h';
         load_cpu($.urlParam('container'));
         load_mem($.urlParam('container'));
+        load_io_interval($.urlParam('container'));
     });
 
     $("#show_cpu_d").click(function(){
         interval = 'd';
         load_cpu($.urlParam('container'));
         load_mem($.urlParam('container'));
+        load_io_interval($.urlParam('container'));
     });
 
+    $("#io_system").change(function() {
+        load_io_interval($.urlParam('container'));
+    });
 
 
 
@@ -466,6 +547,7 @@
         if($.urlParam('container') == 0) {
             $("#msg").html("<span class=\"alert alert-danger\">Error: missing query parameter: container</span>");
             $("#io_loading").hide();
+            $("#io_interval_loading").hide();
             $("#mem_loading").hide();
             $("#cpu_loading").hide();
             $("#proc_loading").hide();
