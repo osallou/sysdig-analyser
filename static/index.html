@@ -30,6 +30,14 @@
             from { transform: scale(1) rotate(0deg);}
             to { transform: scale(1) rotate(360deg);}
         }
+        .btn-badge {
+            min-width: 160px !important;
+            display: inline-block !important;
+            margin: 10px !important;
+        }
+        .badge {
+            margin: 5px !important;
+        }
     </style>
 </head>
 <body>
@@ -81,6 +89,28 @@
                     <input id="time_selector" data-slider-id='time_selector' type="text"/>
                 </div>
             </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-3">
+                <h3>Processes</h3>
+                <div><button type="button" class="btn btn-primary btn-badge" >Number of process <span class="badge pull-right" id="gb_process"></span></button></div>
+            </div>
+            <div class="col-md-3">
+                <h3>Files</h3>
+                <div><button type="button" class="btn btn-primary btn-badge">In+Out <span class="badge pull-right" id="gb_io_files_in_out"></span></button></div>
+                <div><button type="button" class="btn btn-primary btn-badge">In <span class="badge pull-right" id="gb_io_files_in"></span></button></div>
+                <div><button type="button" class="btn btn-primary btn-badge">Out <span class="badge pull-right" id="gb_io_files_out"></span></button></div>
+                <div><button type="button" class="btn btn-primary btn-badge">Access <span class="badge pull-right" id="gb_io_files_access"></span></button></div>
+                <div><button type="button" class="btn btn-primary btn-badge">Modified <span class="badge pull-right" id="gb_io_files_modified"></span></button></div>
+            </div>
+            <div class="col-md-3">
+                <h3>Network</h3>
+                <div><button type="button" class="btn btn-primary btn-badge">In+Out <span class="badge pull-right" id="gb_io_network_in_out"></span></button></div>
+                <div><button type="button" class="btn btn-primary btn-badge">In <span class="badge pull-right" id="gb_io_network_in"></span></button></div>
+                <div><button type="button" class="btn btn-primary btn-badge">Out <span class="badge pull-right" id="gb_io_network_out"></span></button></div>
+            </div>
+
         </div>
 
         <div class="row" id="cpu_tab">
@@ -307,17 +337,46 @@
         var procs = [];
         var groups = [];
         for(var key in data){
-            if(! $('#io_system').is(':checked')) {
-                if(key.startsWith('/etc') || key.startsWith('/usr') || key.startsWith('/lib')) {
-                    continue;
-                }
-            }
             var ok = false;
-
+            var show_system = $('#io_system').is(':checked');
+            var first_in = true;
+            var first_out = true;
             for(var i=0;i<data[key].length;i++){
+
                 var key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
                 if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
                     continue;
+                }
+                if(key.startsWith("/")){
+                    if(data[key][i]["io_in"]>0){
+                        files_in += data[key][i]["io_in"];
+                    }
+                    if(data[key][i]["io_out"]>0){
+                        files_out += data[key][i]["io_out"];
+                    }
+                }
+                else {
+                    if(data[key][i]["io_in"]>0){
+                        network_in += data[key][i]["io_in"];
+                    }
+                    if(data[key][i]["io_out"]>0){
+                        network_out += data[key][i]["io_out"];
+                    }
+                }
+                if(key.startsWith("/")){
+                    if(first_in && data[key][i]["io_in"]>0){
+                        first_in=false;
+                        files_access += 1;
+                    }
+                    if(first_out && data[key][i]["io_out"]>0){
+                        first_out=false;
+                        files_modified += 1;
+                    }
+                }
+                if(! show_system) {
+                    if(key.startsWith('/etc') || key.startsWith('/usr') || key.startsWith('/lib')) {
+                        continue;
+                    }
                 }
                 ok = true;
                 metric = {"x": new Date(data[key][i]["ts"]*1000), "y": (data[key][i]["io_in"]+data[key][i]["io_out"])/1000, "group": key}
@@ -325,9 +384,17 @@
             }
             if(ok){
                 procs.push(key);
-                groups.push({"id": key, "content": key});
+                groups.push({"id": key, "content": proc_list[data[key][0]["proc_name"]] + ":" + key});
             }
         }
+        $("#gb_io_files_in_out").text(files_in+files_out);
+        $("#gb_io_files_in").text(files_in);
+        $("#gb_io_files_out").text(files_out);
+        $("#gb_io_files_access").text(files_access);
+        $("#gb_io_files_modified").text(files_modified);
+        $("#gb_io_network_in_out").text(network_in+network_out);
+        $("#gb_io_network_in").text(network_in);
+        $("#gb_io_network_out").text(network_out);
         return {"data": io_data, "groups": groups, "procs": procs};
     }
 
@@ -463,9 +530,12 @@
             var proc_selection = "";
             for(var i=0; i<cpu0.procs.length;i++){
                 var proc_name = proc_list[cpu0.procs[i]];
+                nb_process++;
                 proc_selection += "<option value=\"" + cpu0.procs[i] + "\">" + proc_name + "("+cpu0.procs[i]+")" + "</option>";
             }
+            $("#gb_process").text(nb_process);
             $("#cpu_proc").append(proc_selection);
+            $("#time_selector").prop('disabled', false);
             return cpu0.procs;
         });
     }
@@ -541,15 +611,34 @@
         });
     }
 
-    $("#cpu_proc_show").click(function(){
-        load_per_cpu($.urlParam('container'), $("#cpu_proc").val());
-    });
 
     var interval = 's';
     var filter_min=null;
     var filter_max=null;
     var max = null;
     var min=null;
+
+    var files_in=0;
+    var files_out=0;
+    var files_access=0;
+    var files_modified=0;
+    var network_in=0;
+    var network_out=0;
+    var nb_process=0;
+
+    function reset_counters(){
+        files_in=0;
+        files_out=0;
+        files_access=0;
+        files_modified=0;
+        network_in=0;
+        network_out=0;
+        nb_process=0;
+    }
+
+    $("#cpu_proc_show").click(function(){
+        load_per_cpu($.urlParam('container'), $("#cpu_proc").val());
+    });
 
     $("#show_cpu_s").click(function(){
         interval = 's';
@@ -603,9 +692,14 @@
         }
     }
     function on_time_change(new_val) {
-       filter_min = new_val[0];
-       filter_max = new_val[1];
-       load_proc($.urlParam('container'), interval);
+        if(new_val[0]==filter_min && new_val[1]==filter_max){
+            return;
+        }
+        $("#time_selector").prop('disabled', true);
+        reset_counters();
+        filter_min = new_val[0];
+        filter_max = new_val[1];
+        load_proc($.urlParam('container'), interval);
     }
 
     function time_selection() {
