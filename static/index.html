@@ -472,7 +472,8 @@
     }
 
     function load_io_interval(container) {
-        d3.json("/container/"+container+"/io" + '?interval=' + interval).header("Authorization", "token " + token).get(function(data) {
+        var show_system = $('#io_system').is(':checked');
+        d3.json("/container/"+container+"/io" + '?interval=' + interval + '&system=' + show_system).header("Authorization", "token " + token).get(function(data) {
             $("#mychart_io_interval").html("");
             $("#io_interval_loading").hide();
             var io = get_io(data);

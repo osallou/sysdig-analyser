@@ -292,7 +292,7 @@ def __cassandra_select_mem(container, interval='s', top=10):
     return result
 
 
-def __cassandra_select_io_ts(container, proc_id, interval='s', top=10):
+def __cassandra_select_io_ts(container, proc_id, interval='s', system=False, top=10):
     table = 'io';
     if interval == 'm':
         table = 'io_per_m';
@@ -308,6 +308,9 @@ def __cassandra_select_io_ts(container, proc_id, interval='s', top=10):
     for row in rows:
         if proc_id and proc_id != row.proc_id:
             continue
+        if not system:
+            if row.file_name.startswith('/etc') or row.file_name.startswith('/usr') or row.file_name.startswith('/lib'):
+                continue
         res = {
             'ts': time.mktime(row.ts.timetuple()),
             'io_in': row.io_in,
@@ -338,7 +341,7 @@ def __cassandra_select_io_ts(container, proc_id, interval='s', top=10):
 
     return result
 
-def __cassandra_select_io(container, proc_id=None, interval=None, top=10):
+def __cassandra_select_io(container, proc_id=None, interval=None, system=False, top=10):
     result = {}
     if interval is None:
         rows = session.execute("SELECT * FROM io_all WHERE container='"+container+"'");
@@ -354,7 +357,7 @@ def __cassandra_select_io(container, proc_id=None, interval=None, top=10):
                 'io_out': row.io_out
             })
     else:
-        result = __cassandra_select_io_ts(container, proc_id, interval, top)
+        result = __cassandra_select_io_ts(container, proc_id, interval, system, top)
     return result
 
 def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
@@ -485,12 +488,17 @@ def container_io(cid):
     if not res:
         return "not authorized", 401
     interval = request.args.get('interval')
+    system = request.args.get('system')
+    if system == 'true':
+        system = True
+    else:
+        system = False
     top_res = request.args.get('top')
     if top_res is None:
         top_res = top_n
     else:
         top_res = int(top_res)
-    return jsonify(__cassandra_select_io(cid, interval=interval, top=top_res))
+    return jsonify(__cassandra_select_io(cid, interval=interval, system=system, top=top_res))
 
 
 @app.route("/event", methods=['POST'])

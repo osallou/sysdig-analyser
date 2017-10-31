@@ -310,6 +310,25 @@ class RetentionHandler(object):
                 self.__delete_old(container)
 
 
+    def is_cgroup(self, data_cgroup):
+        if data_cgroup.startswith('/'):
+            return True
+        else:
+            return False
+
+    def is_docker(self, data_cpuset):
+        if '/docker' in data_cpuset:
+            return True
+        return False
+
+    def is_slurm(self, data_cpuset):
+        if '/slurm' in data_cpuset:
+            cpuset = data_cpuset.split('/')
+            for fsg in cpuset:
+                if fsg.startswith('job_'):
+                    return (True, fsg)
+        return (False, None)
+
     def callback_record(self, ch, method, properties, body):
         try:
             rt = json.loads(body)
@@ -320,6 +339,13 @@ class RetentionHandler(object):
                 return
             if content['evt_type'] == 'fd':
                 for data in content['data']:
+                    is_cgroup = self.is_cgroup(data[2])
+                    if is_cgroup:
+                        if self.is_docker(data[2]):
+                            continue
+                        (is_slurm, cgroup) = self.is_slurm(data[2])
+                        if is_slurm:
+                            data[2] = cgroup
                     # event['in'], event['out'], event['proc'], event['name'], event['container']
                     event = {
                         'proc': int(data[0]),
@@ -337,7 +363,18 @@ class RetentionHandler(object):
                     self.__cleanup(event['container'])
             elif content['evt_type'] == 'cpu':
                 for data in content['data']:
+                    is_cgroup = self.is_cgroup(data[5])
+                    if is_cgroup:
+                        if self.is_docker(data[5]):
+                            continue
+                        (is_slurm, cgroup) = self.is_slurm(data[5])
+                        if is_slurm:
+                            data[5] = cgroup
+
                     is_root = 0
+                    if is_cgroup and is_slurm and 'slurm_script' in data[7]:
+                        is_root = 1
+
                     if int(data[3]) == 1:
                         is_root = 1
                     event = {
