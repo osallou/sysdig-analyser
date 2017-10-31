@@ -613,8 +613,8 @@
 
 
     var interval = 's';
-    var filter_min=null;
-    var filter_max=null;
+    var filter_min = null;
+    var filter_max = null;
     var max = null;
     var min=null;
 
@@ -625,6 +625,13 @@
     var network_in=0;
     var network_out=0;
     var nb_process=0;
+
+    function reset_interval(){
+        filter_min = null;
+        filter_max = null;
+        min = null;
+        max = null;
+    }
 
     function reset_counters(){
         files_in=0;
@@ -642,6 +649,7 @@
 
     $("#show_cpu_s").click(function(){
         interval = 's';
+        reset_interval();
         load_cpu($.urlParam('container'));
         load_mem($.urlParam('container'));
         load_io_interval($.urlParam('container'));
@@ -649,6 +657,7 @@
 
     $("#show_cpu_m").click(function(){
         interval = 'm';
+        reset_interval();
         load_cpu($.urlParam('container'));
         load_mem($.urlParam('container'));
         load_io_interval($.urlParam('container'));
@@ -656,6 +665,7 @@
 
     $("#show_cpu_h").click(function(){
         interval = 'h';
+        reset_interval();
         load_cpu($.urlParam('container'));
         load_mem($.urlParam('container'));
         load_io_interval($.urlParam('container'));
@@ -663,6 +673,7 @@
 
     $("#show_cpu_d").click(function(){
         interval = 'd';
+        reset_interval();
         load_cpu($.urlParam('container'));
         load_mem($.urlParam('container'));
         load_io_interval($.urlParam('container'));
