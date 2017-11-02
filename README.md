@@ -108,6 +108,11 @@ You can use Dockerfile (in docker dir to create a sysdig image containing the lu
 x.y.z being the web ui address, possibly load-balanced
 
 
+## Slurm monitoring
+
+If using slurm with cgroups enabled, it is possible to use sysdigslurm chisel instead of sysdigdocker, simply replace name in sysdig command.
+In Web UI, jobs are reachable at http://a.b.c.d/static/index.html?container=job_XX with XX=Job Identifier
+
 # Processes
 
 Web UI is used to display container info but also to receive live events from sysdig
