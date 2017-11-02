@@ -1,10 +1,14 @@
 # About
 
-this work is in progress and should not be used as is.
+Bubble-chamber records processes usage (cpu, ram, io) inside containers or slurm cgroup jobs, using Sysdig and specific chisels.
+It provides a live and past view of container usage, on a per process basis. Container is not a blackbox anymore, you get per process usage and process relationships (which process was called by which process) inside the container (or slurm cgroup).
 
-program reads sysdig events (live) or scap output files and calculate cpu usage, fd accesses etc.. for a container.
-result is inserted in cassandra.
-The web server records live events from sysdig (with a special chisel) and display container information.
+You get usage info on a per second/minute/hour/day basis, each timeframe keeping data for a configurable amount of time (for example per seconds usage is kept for 1 hour, while per minute usage is kept for 2 days).
+You can see which process, and when is consuming cpu or ram, as well as all files or remote networks accessed by the processes.
+
+The web interface gives a live view of the container, but view can also be seen after the container is over as all records are stored in a database (Cassandra). An API is also available to query raw recorded data.
+
+Bubble-chamber does not keep track of all system events, like Sysdig, it only records main usage and access information.
 
 # License
 
