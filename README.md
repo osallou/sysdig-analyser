@@ -129,6 +129,12 @@ At regular interval, bc_record will send events to bc_clean for old record delet
 
 Delete from database old records (older than BC_RETENTION_XX seconds)
 
+## production
+
+bc_record should be scaled to handle the events sent by listeners. 1 process per listening host should be fine. It is possible to look at rabbitmq queues to see if message flow is correct.
+
+bc_clean should also be scaled, but it needs less instances at it is only called at regular interval, but job requires more time. Again, look at rabbitmq to check message flow to see if more instances are needed.
+
 # Web UI
 
 ## development
