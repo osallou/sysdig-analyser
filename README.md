@@ -23,11 +23,11 @@ System: cassandra, rabbitmq, redis
 
 # Screenshots
 
-![web ui screenshots](screenshots/screen1.png)
-![web ui screenshots](screenshots/screen2.png)
-![web ui screenshots](screenshots/screen3.png)
-![web ui screenshots](screenshots/screen4.png)
-![web ui screenshots](screenshots/screen5.png)
+![web ui screenshots](screenshots/screen1.png?raw=true)
+![web ui screenshots](screenshots/screen2.png?raw=true)
+![web ui screenshots](screenshots/screen3.png?raw=true)
+![web ui screenshots](screenshots/screen4.png?raw=true)
+![web ui screenshots](screenshots/screen5.png?raw=true)
 
 # Installation
 
