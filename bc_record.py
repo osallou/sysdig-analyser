@@ -296,7 +296,7 @@ class RetentionHandler(object):
                     SET status = %s,
                     WHERE id=%s
                     """,
-                    (1, event['container'])
+                    (1, container)
                 )
 
     def __cleanup(self, container):
