@@ -289,17 +289,17 @@ class RetentionHandler(object):
             logging.exception('Failed to send clean event: ' + str(e))
         # container is still active, mark as active with 1h expiration
         # status will expire in 1h. After 1h without any event, container is "inactive"
-        '''
-        self.session.execute(
-                    """
-                    UPDATE container
-                    USING TTL 3600
-                    SET status = %s,
-                    WHERE id=%s
-                    """,
-                    (1, container)
-                )
-        '''
+
+        #self.session.execute(
+        #            """
+        #            UPDATE container
+        #            USING TTL 3600
+        #            SET status = %s,
+        #            WHERE id=%s
+        #            """,
+        #            (1, container)
+        #        )
+
 
     def __cleanup(self, container):
         last_delete = self.redis_client.get('bc:' + container + ':last_delete')
