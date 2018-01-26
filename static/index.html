@@ -581,32 +581,36 @@
             top_mem = load_mem(container_id);
             var container = document.getElementById('procs_relationship');
             $("#proc_loading").hide();
-
-            var nodes = new vis.DataSet(procs.nodes);
-            var edges = new vis.DataSet(procs.edges);
-            var netdata = {
-              nodes: nodes,
-              edges: edges
-            };
-            /*
-            var options = {
-                'height': '400px'
-            };
-            */
-            var options = {
-                height: '400px'
-,                layout: {
-                    hierarchical: {
-                        direction: "UD",
-                        sortMethod: "directed"
+            if(procs.nodes.length<100){
+                var nodes = new vis.DataSet(procs.nodes);
+                var edges = new vis.DataSet(procs.edges);
+                var netdata = {
+                  nodes: nodes,
+                  edges: edges
+                };
+                /*
+                var options = {
+                    'height': '400px'
+                };
+                */
+                var options = {
+                    height: '400px'
+    ,                layout: {
+                        hierarchical: {
+                            direction: "UD",
+                            sortMethod: "directed"
+                        }
+                    },
+                    interaction: {dragNodes :false},
+                    physics: {
+                        enabled: false
                     }
-                },
-                interaction: {dragNodes :false},
-                physics: {
-                    enabled: false
-                }
-            };
-            var network = new vis.Network(container, netdata, options);
+                };
+                var network = new vis.Network(container, netdata, options);
+            }
+            else {
+                console.log('too many processes, do not show process graph');
+            }
 
 
         });
