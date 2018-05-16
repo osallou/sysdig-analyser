@@ -161,7 +161,7 @@
 
         <div class="row" id="io_interval_tab">
             <div class="panel panel-primary">
-                <div class="panel-heading">IO <button id="io_interval_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button><br/><input type="checkbox" id="io_system"> Include system IO</div>
+                <div class="panel-heading">IO (top 100)<button id="io_interval_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button><br/><input type="checkbox" id="io_system"> Include system IO</div>
                 <div class="panel-body">
                         <div class="row">
                             <div id="mychart_io_interval"></div>
@@ -172,7 +172,7 @@
 
         <div class="row" id="proc_tab">
             <div class="panel panel-primary">
-                <div class="panel-heading">Processes <button id="proc_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
+                <div class="panel-heading">Processes (last 1000 ids)<button id="proc_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
                 <div class="panel-body">
                         <div id="procs_relationship">
                         </div>
@@ -405,6 +405,12 @@
         treenode = {}
         var parent = 1;
         var parent_name = null;
+        var compare = function(a,b){
+                if(a.id < b.id) {return 1};
+                if(a.id > b.id) {return -1;}
+                return 0;
+            };
+        data.sort(compare);
         for(var i=0;i<data.length;i++){
             var dataelt = data[i];
             if($.urlParam("root") != 0) {
@@ -419,7 +425,9 @@
             else if(dataelt["is_root"] == 1) {
                 parent = dataelt["id"];
             }
-            proc_info += "<tr><td>" + dataelt["id"]+ "</td><td>" + dataelt["exe"] + "</td><td>" + dataelt["args"] + "</td></tr>";
+            if(i<1000) {
+                proc_info += "<tr><td>" + dataelt["id"]+ "</td><td>" + dataelt["exe"] + "</td><td>" + dataelt["args"] + "</td></tr>";
+            }
             var dataelt = data[i];
             proc_list[dataelt["id"]] = dataelt["name"];
             if(treenode[dataelt["parent"]]==undefined){
@@ -459,12 +467,26 @@
     function load_io(container){
         d3.json("/container/"+container+"/io").header("Authorization", "token " + token).get(function(data) {
             var io_list = "";
+            var io_tmp = [];
             for(var key in data){
                 for(var i=0;i<data[key].length;i++){
                     var elt = data[key][i];
-                    io_list += "<tr><td>" + proc_list[elt["proc_id"]] + "(" + elt["proc_id"] +")" + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>";
+                    io_tmp.push({
+                        "count": elt['io_in'] + elt['io_out'],
+                        "row": "<tr><td>" + proc_list[elt["proc_id"]] + "(" + elt["proc_id"] +")" + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>"
+                    });
                 }
             }
+            var compare = function(a,b){
+                if(a.count < b.count) {return 1};
+                if(a.count > b.count) {return -1;}
+                return 0;
+            };
+            io_tmp.sort(compare);
+            for(var io=0;io<100;io++){
+              io_list += io_tmp[io].row;
+            }
+
             $("#io_loading").hide();
             $("#io_all_list").html(io_list);
             $("#io_table").DataTable();
