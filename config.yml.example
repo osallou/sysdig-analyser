@@ -3,11 +3,32 @@ cassandra:
         - '127.0.0.1'
     cluster: 'sysdig'
 
+mysql:
+    url: 'mysql+mysqldb://bc:bc@bc-mysql/bc'
+    # optional debug for sql
+    debug: false
+
+rabbitmq:
+    host: 'bc-rabbitmq'
+    user: null
+    password: null
+
+influxdb:
+    host: 'bc-influxdb'
+    user: 'bc'
+    password: 'bc'
+    db: 'bc'
+
+redis:
+    host: 'localhost'
+
 auth:
     # Expect a JWT token in authorization header,
     # check that container id in token match requested container
     enable: true
     secret: 'mytoken'
+    # For dev, skip api checks when posting events
+    skip: false
 
 consul:
     host: null

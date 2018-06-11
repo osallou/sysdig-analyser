@@ -18,9 +18,17 @@ from prometheus_client import Counter, Histogram
 from prometheus_client.exposition import generate_latest
 from prometheus_client import multiprocess
 from prometheus_client import CollectorRegistry
-from cassandra.cluster import Cluster
+# from cassandra.cluster import Cluster
 import consul
 import pika
+import influxdb
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from bubblechamber.model import ApiKey as BCApiKey
+from bubblechamber.model import Process as BCProcess
+from bubblechamber.model import File as BCFile
+from bubblechamber.model import Container as BCContainer
 
 FLASK_REQUEST_LATENCY = Histogram('flask_request_latency_seconds', 'Flask Request Latency',
     ['method', 'endpoint'])
@@ -69,10 +77,24 @@ if 'AUTH_SECRET' in os.environ:
 if 'AUTH_DISABLE' in os.environ:
     config['auth']['enable'] = False
 
+if 'INFLUXDB_HOST' in os.environ:
+    config['influxdb']['host'] = os.environ['INFLUXBD_HOST']
+if 'INFLUXDB_PORT' in os.environ:
+    config['influxdb']['port'] = int(os.environ['INFLUXBD_PORT'])
+if 'INFLUXDB_DB' in os.environ:
+    config['influxdb']['db'] = os.environ['INFLUXBD_DB']
+if 'INFLUXDB_USER' in os.environ:
+    config['influxdb']['user'] = os.environ['INFLUXBD_HOST']
+if 'INFLUXDB_PASSWORD' in os.environ:
+    config['influxdb']['password'] = os.environ['INFLUXBD_PASSWORD']
 
+if os.environ.get('BC_MYSQL_URL', None):
+    config['mysql']['url'] = os.environ['BC_MYSQL_URL']
+
+'''
 cluster = Cluster(cassandra_hosts)
 session = cluster.connect(cassandra_cluster)
-
+'''
 
 rabbit = 'localhost'
 if 'RABBITMQ_HOST' in os.environ:
@@ -84,6 +106,15 @@ if 'RABBITMQ_USER' in os.environ and 'RABBITMQ_PASSWORD' in os.environ:
         rabbitmq_user = os.environ['RABBITMQ_USER']
         rabbitmq_password = os.environ['RABBITMQ_PASSWORD']
 
+db_influx = None
+if config['influxdb']['host']:
+    host = config['influxdb']['host']
+    port = config['influxdb'].get('port', 8086)
+    username = config['influxdb']['user']
+    password = config['influxdb']['password']
+    database = config['influxdb']['db']
+db_influx = influxdb.InfluxDBClient(host, port, username, password, database)
+
 connection = None
 if rabbitmq_user:
     credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_password)
@@ -93,16 +124,21 @@ else:
 
 channel = connection.channel()
 
+
+sql_engine = create_engine(config['mysql']['url'], pool_recycle=3600, echo=config.get('debug', False))
+sql_session_maker = sessionmaker(bind=sql_engine)
+
 def __cassandra_load_api():
     res = []
-    rows = session.execute("SELECT * FROM api");
+    sql_session = sql_session_maker()
+    rows = sql_session.query(BCApiKey).all()
     for row in rows:
-        res.append(row.id)
+        res.append(row.key)
+    sql_session.close()
     return res
 
 apikeys = __cassandra_load_api()
 # last_check = datetime.datetime.now()
-
 
 
 top_n = 10
@@ -149,136 +185,88 @@ def __rabbitmq_send_event(event):
     except Exception as e:
         logging.exception('Failed to send record: ' + str(e))
 
-def __cassandra_update_procs(event):
-        '''
-        Record process info
-        '''
-        if not event:
-            return
-        if 'is_root' not in event:
-            event['is_root'] = 0
 
-        session.execute(
-        """
-        UPDATE proc
-        SET parent_id = %s,
-            proc_name = %s,
-            exe=%s,
-            args=%s,
-            is_root=%s
-        WHERE proc_id=%s and container=%s
-        """,
-        (event['parent_id'], event['proc_name'], event['exe'], event['args'],  event['is_root'], event['proc'], event['container'])
-        )
+def __influx_query(query):
+    result = db_influx.query(query)
+    return result.raw
 
-def __cassandra_update_io(event):
-        session.execute(
-        """
-        UPDATE io_all
-        SET io_in = io_in + %s,
-            io_out = io_out + %s
-        WHERE proc_id=%s AND file_name=%s AND container=%s
-        """,
-        (event['in'], event['out'], event['proc'], event['name'], event['container'])
-        )
-
-def __cassandra_update_per_cpu(event):
-        if not event:
-            return
-        session.execute(
-        """
-        UPDATE cpu
-        SET duration = duration + %s
-        WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
-        """,
-        (event['duration'], event['start'], int(event['proc']), event['cpu'], event['container'])
-        )
-
-def __cassandra_update_cpu_all(event):
-        if not event:
-            return
-        session.execute(
-        """
-        UPDATE cpu_all
-        SET duration = duration + %s
-        WHERE ts=%s AND proc_id=%s and container=%s
-        """,
-        (event['duration'], event['start'], int(event['proc']), event['container'])
-        )
-        session.execute(
-        """
-        UPDATE proc_cpu
-        SET cpu = cpu + %s
-        WHERE proc_id=%s and container=%s
-        """,
-        (event['duration'], int(event['proc']), event['container'])
-        )
-
-def __cassandra_update_cpu(event):
-        __cassandra_update_per_cpu(event)
-        __cassandra_update_cpu_all(event)
-        if event:
-            session.execute(
-            'UPDATE container SET status=3 WHERE id=\'' + event['container'] + '\''
-            )
-
-def __cassandra_update_mem(event):
-        if not event:
-            return
-        session.execute(
-        """
-        UPDATE mem
-        SET vm_size = %s,
-            vm_rss = %s,
-            vm_swap = %s
-        WHERE ts=%s AND proc_id=%s AND container=%s
-        """,
-        (event['vm_size'], event['vm_rss'], event['vm_swap'], event['start'], event['proc'], event['container'])
-        )
-
-
-
-def __cassandra_select_procs(container):
+def __select_procs(container):
     result = {'data': []}
-    rows = session.execute("SELECT * FROM proc WHERE container='"+container+"'");
+    sql_session = sql_session_maker()
+    rows = sql_session.query(BCProcess).filter_by(container=container).order_by(BCProcess.last_updated).all()
     for row in rows:
         result['data'].append({
-            'id': row.proc_id,
+            'id': row.process_id,
             'exe': row.exe,
-            'args': row.args,
-            'name': row.proc_name,
+            'args': row.arguments,
+            'name': row.name,
             'parent': row.parent_id,
-            'is_root': row.is_root
+            'is_root': row.is_root,
+            'last_updated': row.last_updated
         })
+    sql_session.close()
     return result
 
 def __cassandra_select_mem(container, interval='s', top=10):
-    table = 'mem';
-    if interval == 'm':
-        table = 'mem_per_m';
-    if interval == 'h':
-        table = 'mem_per_h';
-    if interval == 'd':
-        table = 'mem_per_d';
+    sql_session = sql_session_maker()
+    cont = sql_session.query(BCContainer).filter_by(container=container).first()
+    cont_last_updated = cont.last_updated
+    sql_session.close()
+    rows = []
     result = {}
-    rows = session.execute("SELECT * FROM " + table + " WHERE container='"+container+"'");
+    table = 'cpu';
+    table_all = 'cpu_all'
+    group_interval = '10s'
+    start_time = cont.last_updated - datetime.timedelta(seconds=3600)
+    if interval == 'm':
+        table = 'cpu_per_m';
+        table_all = 'cpu_all_per_m'
+        group_interval = '60s'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24)
+    if interval == 'h':
+        table = 'cpu_per_h';
+        table_all = 'cpu_all_per_h'
+        group_interval = '1h'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24*2)
+    if interval == 'd':
+        table = 'cpu_per_d';
+        table_all = 'cpu_all_per_d'
+        group_interval = '1d'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24*120)
 
-
+    logging.debug('Query stats after ' + str(start_time))
+    start_time = time.mktime(start_time.timetuple()) * 1000000000
+    up_to = time.mktime(cont_last_updated.timetuple()) * 1000000000
+    query = 'select SUM("bytes") from "bc:container:%s:mem:vm_size" where time >= %d and time <= %d group by time(%s),"proc";' % (container, start_time, up_to, group_interval)
+    # logging.error(str(query))
+    res = __influx_query(query)
+    # logging.error(json.dumps(res))
+    series = res.get('series', None)
     top_procs = {}
     tmp_result = {}
-    for row in rows:
-        res = {
-            'ts': time.mktime(row.ts.timetuple()),
-            'vm_size': row.vm_size,
-            'proc_name': row.proc_id
-        }
-        if row.proc_id not in top_procs:
-            top_procs[row.proc_id] = 0
-        top_procs[row.proc_id] += row.vm_size
-        if res['proc_name'] not in tmp_result:
-            tmp_result[res['proc_name']] = []
+    if not series:
+        return tmp_result
 
-        tmp_result[res['proc_name']].append(res)
+    for serie in series:
+        proc_id = serie['tags']['proc']
+        values = serie['values']
+        for value in values:
+            utc_dt = datetime.datetime.strptime(value[0], '%Y-%m-%dT%H:%M:%SZ')
+            timestamp = (utc_dt - datetime.datetime(1970, 1, 1)).total_seconds()
+
+            res = {
+                'proc_name': proc_id,
+                'ts': timestamp,
+                'vm_size': value[1] or 0,
+            }
+
+            if proc_id not in top_procs:
+                top_procs[proc_id] = 0
+            top_procs[proc_id] += res['vm_size']
+            if res['proc_name'] not in tmp_result:
+                tmp_result[res['proc_name']] = []
+            tmp_result[res['proc_name']].append(res)
+
     proc_array = []
     for proc_id in list(top_procs.keys()):
         proc_array.append({'id': proc_id, 'vm_size': top_procs[proc_id]})
@@ -288,122 +276,178 @@ def __cassandra_select_mem(container, interval='s', top=10):
     else:
         for proc in proc_array[0:top]:
             result[proc['id']] = tmp_result[proc['id']]
-
     return result
 
 
 def __cassandra_select_io_ts(container, proc_id, interval='s', system=False, top=10):
-    table = 'io';
+    sql_session = sql_session_maker()
+    cont = sql_session.query(BCContainer).filter_by(container=container).first()
+    cont_last_updated = cont.last_updated
+    sql_session.close()
+    group_interval = '10s'
+    start_time = cont.last_updated - datetime.timedelta(seconds=3600)
     if interval == 'm':
-        table = 'io_per_m';
+        group_interval = '60s'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24)
     if interval == 'h':
-        table = 'io_per_h';
+        group_interval = '1h'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24*2)
     if interval == 'd':
-        table = 'io_per_d';
+        group_interval = '1d'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24*120)
     result = {}
-    rows = session.execute("SELECT * FROM " + table + " WHERE container='"+container+"'");
+    # "measurement": "bc:container:" + event['container']+ ":fd:io:in"
+    start_time = time.mktime(start_time.timetuple()) * 1000000000
+    up_to = time.mktime(cont_last_updated.timetuple()) * 1000000000
+    system = True
+    if system:
+        query = 'select SUM("bytes") from "bc:container:%s:fd:io:total" where time >= %d and time <= %d group by time(%s),"proc";' % (container, start_time, up_to, group_interval)
+    else:
+        query = 'select SUM("bytes") from "bc:container:%s:fd:io:total" where "system" = 0 and time >= %d and time <= %d group by time(%s),"proc";' % (container, start_time, up_to, group_interval)
 
     top_procs = {}
     tmp_result = {}
-    for row in rows:
-        if proc_id and proc_id != row.proc_id:
+    res = __influx_query(query)
+    logging.error(query)
+    series = res.get('series', None)
+    # logging.error(str(res))
+    if not series:
+        return {}
+
+    for serie in series:
+        logging.error(json.dumps(serie))
+        if proc_id and proc_id != serie['tags']['proc']:
             continue
-        if not system:
-            if row.file_name.startswith('/etc') or row.file_name.startswith('/usr') or row.file_name.startswith('/lib'):
-                continue
-        res = {
-            'ts': time.mktime(row.ts.timetuple()),
-            'io_in': row.io_in,
-            'io_out': row.io_out,
-            'file_name': row.file_name,
-            'proc_name': row.proc_id
-        }
-        uid = row.file_name
+        proc_id = serie['tags']['proc']
+        values = serie['values']
+        for value in values:
+            utc_dt = datetime.datetime.strptime(value[0], '%Y-%m-%dT%H:%M:%SZ')
+            timestamp = (utc_dt - datetime.datetime(1970, 1, 1)).total_seconds()
 
-        if uid not in top_procs:
-            top_procs[uid] = 0
-        top_procs[uid] += row.io_in + row.io_out
+            res = {
+                'proc_name': proc_id,
+                'ts': timestamp,
+                'bytes': value[1] or 0,
+            }
 
-        if uid not in tmp_result:
-            tmp_result[uid] = []
-
-        tmp_result[uid].append(res)
+            if proc_id not in top_procs:
+                top_procs[proc_id] = 0
+            top_procs[proc_id] += res['bytes']
+            if res['proc_name'] not in tmp_result:
+                tmp_result[res['proc_name']] = []
+            tmp_result[res['proc_name']].append(res)
 
     proc_array = []
-    for file_id in list(top_procs.keys()):
-        proc_array.append({'id': file_id, 'io': top_procs[file_id]})
+    for proc_id in list(top_procs.keys()):
+        proc_array.append({'id': proc_id, 'io': top_procs[proc_id]})
     proc_array.sort(key=lambda x: x['io'], reverse=True)
     if len(proc_array) < top:
         result = tmp_result
     else:
         for proc in proc_array[0:top]:
             result[proc['id']] = tmp_result[proc['id']]
-
     return result
 
 def __cassandra_select_io(container, proc_id=None, interval=None, system=False, top=10):
     result = {}
     if interval is None:
-        rows = session.execute("SELECT * FROM io_all WHERE container='"+container+"'");
+        sql_session = sql_session_maker()
+        rows = sql_session.query(BCFile).filter_by(container=container).order_by(BCFile.last_updated).all()
         for row in rows:
             if proc_id and proc_id!=row.proc_id:
                 continue
-            if row.proc_id not in result:
-                result[row.proc_id] = []
-            result[row.proc_id].append({
-                'file_name': row.file_name,
-                'proc_id': row.proc_id,
+            if row.process_id not in result:
+                result[row.process_id] = []
+            result[row.process_id].append({
+                'file_name': row.name,
+                'proc_id': row.process_id,
                 'io_in': row.io_in,
-                'io_out': row.io_out
+                'io_out': row.io_out,
+                'io_total': row.io_total,
+                'last_updated': row.last_updated
             })
+        sql_session.close()
     else:
         result = __cassandra_select_io_ts(container, proc_id, interval, system, top)
     return result
 
 def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
+    sql_session = sql_session_maker()
+    cont = sql_session.query(BCContainer).filter_by(container=container).first()
+    cont_last_updated = cont.last_updated
+    sql_session.close()
     rows = []
     result = {}
-    table = 'cpu';
-    table_all = 'cpu_all'
+    group_interval = '10s'
+    start_time = cont.last_updated - datetime.timedelta(seconds=3600)
     if interval == 'm':
-        table = 'cpu_per_m';
-        table_all = 'cpu_all_per_m'
+        group_interval = '60s'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24)
     if interval == 'h':
-        table = 'cpu_per_h';
-        table_all = 'cpu_all_per_h'
+        group_interval = '1h'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24*2)
     if interval == 'd':
-        table = 'cpu_per_d';
-        table_all = 'cpu_all_per_d'
-    if proc_id:
-        rows = session.execute("SELECT * FROM " + table_all + " WHERE container='"+container+"' AND proc_id="+str(proc_id))
-        for row in rows:
-            res = {
-                'proc_name': row.proc_id,
-                'ts': time.mktime(row.ts.timetuple()),
-                'duration': row.duration,
-            }
-            #if proc_id:
-            #    res['cpu'] = row.cpu
-            if res['proc_name'] not in result:
-                result[res['proc_name']] = []
+        group_interval = '1d'
+        start_time = datetime.datetime.now() - datetime.timedelta(seconds=3600*24*120)
 
-            result[res['proc_name']].append(res)
+    if proc_id:
+        start_time = time.mktime(start_time.timetuple()) * 1000000000
+        up_to = time.mktime(cont_last_updated.timetuple()) * 1000000000
+        query = 'select SUM("duration") from "bc:container:%s:cpu:duration" where "proc" = \'%s\' and time >= %d and time <= %d group by time(%s);' % (container, str(proc_id), start_time, up_to, group_interval)
+        # logging.error(str(query))
+        res = __influx_query(query)
+        series = res.get('series', None)
+        # logging.error(str(res))
+        if not series:
+            return {}
+        for serie in series:
+            values = serie['values']
+            for value in values:
+                utc_dt = datetime.datetime.strptime(value[0], '%Y-%m-%dT%H:%M:%SZ')
+                timestamp = (utc_dt - datetime.datetime(1970, 1, 1)).total_seconds()
+                res = {
+                    'proc_name': proc_id,
+                    'ts': timestamp,
+                    'duration': value[1] or 0,
+                }
+
+                if res['proc_name'] not in result:
+                    result[res['proc_name']] = []
+                result[res['proc_name']].append(res)
     else:
-        rows = session.execute("SELECT * FROM " + table_all + " WHERE container='"+container+"'")
+        logging.debug('Query stats after ' + str(start_time))
+        start_time = time.mktime(start_time.timetuple()) * 1000000000
+        up_to = time.mktime(cont_last_updated.timetuple()) * 1000000000
+        query = 'select SUM("duration") from "bc:container:%s:cpu:duration" where time >= %d and time <= %d group by time(%s),"proc";' % (container, start_time, up_to, group_interval)
+        # logging.error(str(query))
+        res = __influx_query(query)
+        # logging.error(json.dumps(res))
+        series = res.get('series', None)
         top_procs = {}
         tmp_result = {}
-        for row in rows:
-            res = {
-                'proc_name': row.proc_id,
-                'ts': time.mktime(row.ts.timetuple()),
-                'duration': row.duration,
-            }
-            if row.proc_id not in top_procs:
-                top_procs[row.proc_id] = 0
-            top_procs[row.proc_id] += row.duration
-            if res['proc_name'] not in tmp_result:
-                tmp_result[res['proc_name']] = []
-            tmp_result[res['proc_name']].append(res)
+        if not series:
+            return tmp_result
+
+        for serie in series:
+            proc_id = serie['tags']['proc']
+            values = serie['values']
+            for value in values:
+                utc_dt = datetime.datetime.strptime(value[0], '%Y-%m-%dT%H:%M:%SZ')
+                timestamp = (utc_dt - datetime.datetime(1970, 1, 1)).total_seconds()
+
+                res = {
+                    'proc_name': proc_id,
+                    'ts': timestamp,
+                    'duration': value[1] or 0,
+                }
+
+                if proc_id not in top_procs:
+                    top_procs[proc_id] = 0
+                top_procs[proc_id] += res['duration']
+                if res['proc_name'] not in tmp_result:
+                    tmp_result[res['proc_name']] = []
+                tmp_result[res['proc_name']].append(res)
+
         proc_array = []
         for proc_id in list(top_procs.keys()):
             proc_array.append({'id': proc_id, 'duration': top_procs[proc_id]})
@@ -460,12 +504,13 @@ def container_cpus(cid):
         top_res = int(top_res)
     return jsonify(__cassandra_select_cpu(cid, interval=interval, top=top_res))
 
+
 @app.route("/container/<cid>/proc")
 def container_procs(cid):
     res = check_auth(cid)
     if not res:
         return "not authorized", 401
-    return jsonify(__cassandra_select_procs(cid))
+    return jsonify(__select_procs(cid))
 
 @app.route("/container/<cid>/mem")
 def container_mem(cid):
@@ -481,6 +526,7 @@ def container_mem(cid):
     else:
         top_res = int(top_res)
     return jsonify(__cassandra_select_mem(cid, interval=interval, top=top_res))
+
 
 @app.route("/container/<cid>/io")
 def container_io(cid):
@@ -499,6 +545,7 @@ def container_io(cid):
     else:
         top_res = int(top_res)
     return jsonify(__cassandra_select_io(cid, interval=interval, system=system, top=top_res))
+    return jsonify({})
 
 
 @app.route("/event", methods=['POST'])
@@ -512,6 +559,9 @@ def get_event_auth_header():
 
 @app.route("/event/api/<api>", methods=['POST'])
 def get_event(api):
+    if config['auth'].get('skip', False) is True:
+        if api not in apikeys:
+            apikeys.append(api)
     if api not in apikeys:
         # check if reload necessary
         new_check = datetime.datetime.now()

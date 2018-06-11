@@ -7,14 +7,24 @@ import re
 import copy
 import datetime
 import time
+import yaml
 
 from bson import json_util
 
 import redis
 import pika
-from cassandra.cluster import Cluster
+# from cassandra.cluster import Cluster
 from progressbar import Percentage, ProgressBar, Bar
 import click
+
+import influxdb
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from bubblechamber.model import File as BCFile
+from bubblechamber.model import Process as BCProcess
+from bubblechamber.model import Container as BCContainer
 
 @click.group()
 def run():
@@ -23,16 +33,147 @@ def run():
 
 class RetentionHandler(object):
 
-    def __init__(self, cassandra_session):
-        self.session = cassandra_session
-        redis_host = 'localhost'
-        redis_port = 6379
-        if 'REDIS_HOST' in os.environ:
-                redis_host = os.environ['REDIS_HOST']
-        if 'REDIS_PORT' in os.environ:
-                redis_host = int(os.environ['REDIS_PORT'])
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.engine = create_engine(self.cfg['mysql']['url'], pool_recycle=3600, echo=self.cfg['mysql'].get('debug', False))
+        self.SqlSession = sessionmaker(bind=self.engine)
+        self.db_influx = None
+        if self.cfg['influxdb']['host']:
+            host = self.cfg['influxdb']['host']
+            port = self.cfg['influxdb'].get('port', 8086)
+            username = self.cfg['influxdb']['user']
+            password = self.cfg['influxdb']['password']
+            database = self.cfg['influxdb']['db']
+            self.db_influx = influxdb.InfluxDBClient(host, port, username, password, database)
+
+        redis_host = self.cfg['redis']['host']
+        redis_port = self.cfg['redis'].get('port', 6379)
         self.redis_client = redis.Redis(host=redis_host, port=redis_port)
-        self.channel = None
+
+    def __add_influx(self, data):
+        try:
+            self.db_influx.write_points(data)
+        except Exception as e:
+            # Do not fail on stat writing
+            logging.exception('Stat:Error:' + str(e))
+
+    def __add_cpu_mem(self, event):
+        session = self.SqlSession()
+        '''
+            container = Column(String(64), primary_key=True)
+            process_id = Column(Integer, primary_key=True)
+            name = Column(String(100))
+            arguments = Column(String(256))
+            parent_id = Column(Integer)
+        '''
+        bc_proc = BCProcess(
+            container=event['container'],
+            process_id=event['proc'],
+        )
+
+        bc_proc = session.merge(bc_proc)
+        bc_proc.name = event['proc_name']
+        bc_proc.exe = event['exe']
+        bc_proc.arguments = event['args']
+        bc_proc.parent_id = event['parent_id']
+        bc_proc.is_root = event['is_root']
+        bc_proc.last_updated = datetime.datetime.now()
+
+        bc_container = BCContainer(container=event['container'])
+        bc_container = session.merge(bc_container)
+        bc_container.last_updated = datetime.datetime.now()
+
+        session.commit()
+        session.close()
+        # add influx cpu and mem
+        points = [
+            {
+                "measurement": "bc:container:" + event['container']+ ":mem:vm_size",
+                "tags": {
+                    "proc": event['proc']
+                },
+                "time": event['ts'],
+                "fields": {
+                    "bytes": event['vm_size'],
+                }
+            },
+            {
+                "measurement": "bc:container:" + event['container']+ ":cpu:duration",
+                "tags": {
+                    "proc": event['proc']
+                },
+                "time": event['ts'],
+                "fields": {
+                    "duration": event['duration'],
+                }
+            }
+        ]
+        self.__add_influx(points)
+
+    def __add_fd(self, event):
+        session = self.SqlSession()
+        bc_file = BCFile(
+            container=event['container'],
+            process_id=event['proc'],
+            name=event['name']
+        )
+        '''
+        event = {
+            'proc': int(data[0]),
+            'container': data[2],
+            'name': data[3],
+            'in': 0,
+            'out': 0,
+            'in_out': 0
+            'start':  long(content['ts'])/1000000
+        '''
+
+        bc_file = session.merge(bc_file)
+        bc_file.io_in = BCFile.io_in + event['in']
+        bc_file.io_out = BCFile.io_out + event['out']
+        bc_file.io_total = BCFile.io_total + event['in_out']
+        is_system = 0
+        if bc_file.name.startswith('/etc') or bc_file.name.startswith('/usr') or bc_file.name.startswith('/lib'):
+            is_system = 1
+
+        session.commit()
+        session.close()
+
+        # Then add to influx io global streams
+        points = [
+            {
+                "measurement": "bc:container:" + event['container']+ ":fd:io:in",
+                "tags": {
+                    "proc": event['proc'],
+                    "system": is_system
+                },
+                "time": event['ts'],
+                "fields": {
+                    "bytes": event['in'],
+                }
+            },
+            {
+                "measurement": "bc:container:" + event['container']+ ":fd:io:out",
+                "tags": {
+                    "proc": event['proc']
+                },
+                "time": event['ts'],
+                "fields": {
+                    "bytes": event['out'],
+                }
+            },
+            {
+                "measurement": "bc:container:" + event['container']+ ":fd:io:total",
+                "tags": {
+                    "proc": event['proc']
+                },
+                "time": event['ts'],
+                "fields": {
+                    "bytes": event['in'] + event['out'],
+                }
+            }
+        ]
+        self.__add_influx(points)
 
     def __get_retention_interval(self, retention):
         '''
@@ -54,223 +195,9 @@ class RetentionHandler(object):
         up_to = datetime.datetime.now() - datetime.timedelta(seconds=retention_seconds)
         return int(time.mktime(up_to.timetuple())*1000)
 
-    def __cassandra_update_procs(self, event):
-        '''
-        Record process info
-        '''
-        if not event:
-            return
-        if 'is_root' not in event:
-            event['is_root'] = 0
-
-        self.session.execute(
-            """
-            UPDATE proc
-            SET parent_id = %s,
-                proc_name = %s,
-                exe=%s,
-                args=%s,
-                is_root=%s
-            WHERE proc_id=%s and container=%s
-            """,
-            (event['parent_id'], event['proc_name'], event['exe'], event['args'],  event['is_root'], event['proc'], event['container'])
-        )
-
-    def __cassandra_update_io(self, event):
-        self.session.execute(
-            """
-            UPDATE io_all
-            SET io_in = io_in + %s,
-                io_out = io_out + %s
-            WHERE proc_id=%s AND file_name=%s AND container=%s
-            """,
-            (event['in'], event['out'], event['proc'], event['name'], event['container'])
-        )
-
-        start = datetime.datetime.fromtimestamp(event['start']/1000)
-        start_m = start.replace(second=0)
-        start_h = start_m.replace(minute=0)
-        start_d = start_h.replace(hour=0)
-        self.session.execute(
-            """
-            UPDATE io
-            SET io_in = io_in + %s,
-                io_out = io_out + %s
-            WHERE proc_id=%s AND ts=%s AND file_name=%s AND container=%s
-            """,
-            (event['in'], event['out'], event['proc'], self.__get_ts(start), event['name'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE io_per_m
-            SET io_in = io_in + %s,
-                io_out = io_out + %s
-            WHERE proc_id=%s AND ts=%s AND file_name=%s AND container=%s
-            """,
-            (event['in'], event['out'], event['proc'], self.__get_ts(start_m), event['name'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE io_per_h
-            SET io_in = io_in + %s,
-                io_out = io_out + %s
-            WHERE proc_id=%s AND ts=%s AND file_name=%s AND container=%s
-            """,
-            (event['in'], event['out'], event['proc'], self.__get_ts(start_h), event['name'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE io_per_d
-            SET io_in = io_in + %s,
-                io_out = io_out + %s
-            WHERE proc_id=%s AND ts=%s AND file_name=%s AND container=%s
-            """,
-            (event['in'], event['out'], event['proc'], self.__get_ts(start_d), event['name'], event['container'])
-        )
 
     def __get_ts(self, event_date):
         return int(time.mktime(event_date.timetuple())*1000)
-
-    def __cassandra_update_per_cpu(self, event):
-        if not event:
-            return
-        start = datetime.datetime.fromtimestamp(event['start']/1000)
-        start_m = start.replace(second=0)
-        start_h = start_m.replace(minute=0)
-        start_d = start_h.replace(hour=0)
-        self.session.execute(
-            """
-            UPDATE cpu
-            SET duration = duration + %s
-            WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
-            """,
-            (event['duration'], self.__get_ts(start), int(event['proc']), event['cpu'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE cpu_per_m
-            SET duration = duration + %s
-            WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
-            """,
-            (event['duration'], self.__get_ts(start_m), int(event['proc']), event['cpu'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE cpu_per_h
-            SET duration = duration + %s
-            WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
-            """,
-            (event['duration'], self.__get_ts(start_h), int(event['proc']), event['cpu'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE cpu_per_d
-            SET duration = duration + %s
-            WHERE ts=%s AND proc_id=%s AND cpu=%s AND container=%s
-            """,
-            (event['duration'], self.__get_ts(start_d), int(event['proc']), event['cpu'], event['container'])
-        )
-
-    def __cassandra_update_cpu_all(self, event):
-        if not event:
-            return
-        start = datetime.datetime.fromtimestamp(event['start']/1000)
-        start_m = start.replace(second=0)
-        start_h = start_m.replace(minute=0)
-        start_d = start_h.replace(hour=0)
-        self.session.execute(
-            """
-            UPDATE proc_cpu
-            SET cpu = cpu + %s
-            WHERE proc_id=%s and container=%s
-            """,
-            (event['duration'], int(event['proc']), event['container'])
-        )
-
-        self.session.execute(
-            """
-            UPDATE cpu_all
-            SET duration = duration + %s
-            WHERE ts=%s AND proc_id=%s and container=%s
-            """,
-            (event['duration'], self.__get_ts(start), int(event['proc']), event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE cpu_all_per_m
-            SET duration = duration + %s
-            WHERE ts=%s AND proc_id=%s and container=%s
-            """,
-            (event['duration'], self.__get_ts(start_m), int(event['proc']), event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE cpu_all_per_h
-            SET duration = duration + %s
-            WHERE ts=%s AND proc_id=%s and container=%s
-            """,
-            (event['duration'], self.__get_ts(start_h), int(event['proc']), event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE cpu_all_per_d
-            SET duration = duration + %s
-            WHERE ts=%s AND proc_id=%s and container=%s
-            """,
-            (event['duration'], self.__get_ts(start_d), int(event['proc']), event['container'])
-        )
-
-    def __cassandra_update_cpu(self, event):
-        self.__cassandra_update_per_cpu(event)
-        self.__cassandra_update_cpu_all(event)
-
-    def __cassandra_update_mem(self, event):
-        if not event:
-            return
-        start = datetime.datetime.fromtimestamp(event['start']/1000)
-        start_m = start.replace(second=0)
-        start_h = start_m.replace(minute=0)
-        start_d = start_h.replace(hour=0)
-        self.session.execute(
-            """
-            UPDATE mem
-            SET vm_size = %s,
-                vm_rss = %s,
-                vm_swap = %s
-            WHERE ts=%s AND proc_id=%s AND container=%s
-            """,
-            (event['vm_size'], event['vm_rss'], event['vm_swap'], self.__get_ts(start), event['proc'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE mem_per_m
-            SET vm_size = %s,
-                vm_rss = %s,
-                vm_swap = %s
-            WHERE ts=%s AND proc_id=%s AND container=%s
-            """,
-            (event['vm_size'], event['vm_rss'], event['vm_swap'], self.__get_ts(start_m), event['proc'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE mem_per_h
-            SET vm_size = %s,
-                vm_rss = %s,
-                vm_swap = %s
-            WHERE ts=%s AND proc_id=%s AND container=%s
-            """,
-            (event['vm_size'], event['vm_rss'], event['vm_swap'], self.__get_ts(start_h), event['proc'], event['container'])
-        )
-        self.session.execute(
-            """
-            UPDATE mem_per_d
-            SET vm_size = %s,
-                vm_rss = %s,
-                vm_swap = %s
-            WHERE ts=%s AND proc_id=%s AND container=%s
-            """,
-            (event['vm_size'], event['vm_rss'], event['vm_swap'], self.__get_ts(start_d), event['proc'], event['container'])
-        )
 
     def __delete_old(self, container):
         logging.debug('Request cleanup of %s' % (container))
@@ -287,18 +214,7 @@ class RetentionHandler(object):
                 ))
         except Exception as e:
             logging.exception('Failed to send clean event: ' + str(e))
-        # container is still active, mark as active with 1h expiration
-        # status will expire in 1h. After 1h without any event, container is "inactive"
 
-        #self.session.execute(
-        #            """
-        #            UPDATE container
-        #            USING TTL 3600
-        #            SET status = %s,
-        #            WHERE id=%s
-        #            """,
-        #            (1, container)
-        #        )
 
 
     def __cleanup(self, container):
@@ -355,14 +271,17 @@ class RetentionHandler(object):
                         'name': data[3],
                         'in': 0,
                         'out': 0,
-                        'start':  long(content['ts'])/1000000
+                        'in_out': 0,
+                        'start':  long(content['ts'])/1000000,
+                        'ts': long(content['ts'])
                     }
                     if data[4] == 'in':
                         event['in'] = data[5]
                     else:
                         event['out'] = data[5]
-                    self.__cassandra_update_io(event)
-                    self.__cleanup(event['container'])
+                    event['in_out'] += data[5]
+                    self.__add_fd(event)
+
             elif content['evt_type'] == 'cpu':
                 for data in content['data']:
                     is_cgroup = self.is_cgroup(data[5])
@@ -392,13 +311,12 @@ class RetentionHandler(object):
                         'parent_id': int(data[8]),
                         'duration': data[9],
                         'start':  long(content['ts'])/1000000,
-                        'is_root': is_root
+                        'is_root': is_root,
+                        'ts': long(content['ts'])
                     }
                     logging.debug('Record event, container=%s, ts=%s' % (event['container'], str(event['start'])))
-                    self.__cassandra_update_procs(event)
-                    self.__cassandra_update_cpu(event)
-                    self.__cassandra_update_mem(event)
-                    self.__cleanup(event['container'])
+                    self.__add_cpu_mem(event)
+
         except Exception as e:
             logging.exception("Failed to handle retention query: " + str(e))
         finally:
@@ -406,51 +324,57 @@ class RetentionHandler(object):
 
 
 @run.command()
-@click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
-@click.option('--cluster', default='sysdig', help='cassandra cluster name')
-@click.option('--rabbit', help="rabbitmq host")
 @click.option('--debug', help="set log level to debug", is_flag=True)
-def listen(host, cluster, rabbit, debug):
+def listen(debug):
     '''
     For rabbitmq credentials MUST use env variables RABBITMQ_USER and RABBITMQ_PASSWORD
     '''
-    if len(host) == 0:
-        host_list = ['127.0.0.1']
-    else:
-        host_list = list(host)
+    config_file = 'config.yml'
+    if 'BC_CONFIG' in os.environ:
+            config_file = os.environ['BC_CONFIG']
+
+    config = {}
+    if os.path.exists(config_file):
+        with open(config_file, 'r') as ymlfile:
+            config = yaml.load(ymlfile)
 
     if debug:
+        config['debug'] = True
         logging.basicConfig(level=logging.DEBUG)
 
-    if 'CASSANDRA_HOST' in os.environ:
-        host_list = [os.environ['CASSANDRA_HOST']]
-    if 'CASSANDRA_CLUSTER' in os.environ:
-        cluster = os.environ['CASSANDRA_CLUSTER']
+    if os.environ.get('BC_MYSQL_URL', None):
+        config['mysql']['url'] = os.environ['BC_MYSQL_URL']
+
     if 'RABBITMQ_HOST' in os.environ:
-        rabbit = os.environ['RABBITMQ_HOST']
+        config['rabbitmq']['host'] = os.environ['RABBITMQ_HOST']
 
-    rabbitmq_user = None
-    rabbitmq_password = None
     if 'RABBITMQ_USER' in os.environ and 'RABBITMQ_PASSWORD' in os.environ:
-            rabbitmq_user = os.environ['RABBITMQ_USER']
-            rabbitmq_password = os.environ['RABBITMQ_PASSWORD']
+            config['rabbitmq']['user'] = os.environ['RABBITMQ_USER']
+            config['rabbitmq']['password'] = os.environ['RABBITMQ_PASSWORD']
+    if 'REDIS_HOST' in os.environ:
+            config['redis']['host'] = os.environ['REDIS_HOST']
+    if 'REDIS_PORT' in os.environ:
+            config['redis']['host'] = int(os.environ['REDIS_PORT'])
 
-    try:
-        cassandra_cluster = Cluster(host_list)
-        session = cassandra_cluster.connect(cluster)
-        session.default_timeout = 30.0
-    except Exception as e:
-        logging.error("Cassandra connection error: " + str(e))
-        sys.exit(1)
+    if 'INFLUXDB_HOST' in os.environ:
+        config['influxdb']['host'] = os.environ['INFLUXBD_HOST']
+    if 'INFLUXDB_PORT' in os.environ:
+        config['influxdb']['port'] = int(os.environ['INFLUXBD_PORT'])
+    if 'INFLUXDB_DB' in os.environ:
+        config['influxdb']['db'] = os.environ['INFLUXBD_DB']
+    if 'INFLUXDB_USER' in os.environ:
+        config['influxdb']['user'] = os.environ['INFLUXBD_HOST']
+    if 'INFLUXDB_PASSWORD' in os.environ:
+        config['influxdb']['password'] = os.environ['INFLUXBD_PASSWORD']
 
-    rtHandler = RetentionHandler(session)
+    rtHandler = RetentionHandler(config)
 
     connection = None
-    if rabbitmq_user:
-        credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_password)
-        connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, credentials=credentials, heartbeat_interval=0))
+    if config['rabbitmq']['user']:
+        credentials = pika.PlainCredentials(config['rabbitmq']['user'], config['rabbitmq']['password'])
+        connection = pika.BlockingConnection(pika.ConnectionParameters(config['rabbitmq']['host'], credentials=credentials, heartbeat_interval=0))
     else:
-        connection = pika.BlockingConnection(pika.ConnectionParameters(rabbit, heartbeat_interval=0))
+        connection = pika.BlockingConnection(pika.ConnectionParameters(config['rabbitmq']['host'], heartbeat_interval=0))
     channel = connection.channel()
     rtHandler.channel = channel
     channel.queue_declare(queue='bc_record', durable=True)

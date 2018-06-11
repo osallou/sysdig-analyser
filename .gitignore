@@ -7,5 +7,6 @@ dist
 prometheus-multiproc
 *.egg-info
 config.yml
+test.yml
 *.pyc
 venv

@@ -71,7 +71,11 @@ setup(
                       'prometheus_client',
                       'python-consul',
                       'pika',
-                      'redis'
+                      'redis',
+                      'influxdb',
+                      'SQLAlchemy',
+                      'MySQL-Python'
+
                      ],
     scripts=[
             'bc_api.py',
