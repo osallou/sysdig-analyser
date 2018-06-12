@@ -19,7 +19,7 @@ Apache 2.0 (see https://www.apache.org/licenses/LICENSE-2.0)
 
     python setup.py install
 
-System: cassandra, rabbitmq, redis
+System: mariadb, influxdb, rabbitmq, redis
 
 # Screenshots
 
@@ -36,25 +36,19 @@ System: cassandra, rabbitmq, redis
     docker-compose up -d
 
 
-Script launches cassandra, consul, redis and bc web servers, record and clean processes
+Script launches influxdb, mariadb, consul, redis and bc web servers and record
 
-bc processes may fail to start as they need cassandra to be ready to accept connections.
-In this case, wait for cassandra to be ready and execute the command again.
+bc processes may fail to start as they need mariadb/influxdb/rabbitmq to be ready to accept connections.
+In this case, wait for mani processes to be ready and execute the command again.
 
 Available env variables:
 
- * CASSANDRA_HOST=bc-cassandra
- * CASSANDRA_CLUSTER=sysdig
  * RABBITMQ_HOST=bc-rabbitmq
  * RABBITMQ_USER=test
  * RABBITMQ_PASSWORD=XXX
  * REDIS_HOST=bc-redis
- * BC_RETENTION_SECONDS=3600
- * BC_RETENTION_MINUTES=172800
- * BC_RETENTION_HOURS=10368000
+ * BC_MYSQL_URL=mysql+mysqldb://bc:bc@bc-mysql/bc
 
-BC_RETENTION_XX are the number of seconds to keep in database for a container. Older records will be deleted.
-Delete occurs after an event is received. If there is no new record, then last BC_RETENTION_XX are kept.
 
 ## Setup
 
@@ -69,9 +63,6 @@ For upgrades:
     python bc_db.py upgrade
 
 
-Use *-h* for options to specify cassandra ip and cluster to use.
-
-
 ## Api keys
 
 To send events to web server, one need an API key. Script bc_api helps managing api keys
@@ -81,7 +72,7 @@ To send events to web server, one need an API key. Script bc_api helps managing 
 
     python bc_api.py delete --api EERZERZEZT
 
-For help and cassandra connection info parameters:
+For help:
 
     python bc_api.py  create --help
     python bc_api.py  delete --help
@@ -127,24 +118,32 @@ In Web UI, jobs are reachable at http://a.b.c.d/static/index.html?container=job_
 # Processes
 
 Web UI is used to display container info but also to receive live events from sysdig
-Events are then dispatched to bc_record to record events in database then to clean process if old events need to be deleted.
+Events are then dispatched to bc_record to record events in database.
 
 # Background processes
 
 ## bc_record
 
-Listen to rabbitmq for sysdig events sent by web process and record events in cassandra (per seconds, minutes, hours and days)
-At regular interval, bc_record will send events to bc_clean for old record deletion
+Listen to rabbitmq for sysdig events sent by web process and record events in mariadb/influxdb
 
 ## bc_clean
 
-Delete from database old records (older than BC_RETENTION_XX seconds)
+bc_clean process can be manually launched at regular interval to cleanup old containers that did not received events since X days (or one can specify a specific container).
+All related containers stats will be removed.
+
+
+    python bc_clean.py  clean --days=90
+    python bc_clean.py  clean --container=XYZ
+
+
+It is possible to execute it via a cron:
+
+    docker run osallou/bubble-web python bc_clean.py clean --days=90
 
 ## production
 
 bc_record should be scaled to handle the events sent by listeners. 1 process per listening host should be fine. It is possible to look at rabbitmq queues to see if message flow is correct.
 
-bc_clean should also be scaled, but it needs less instances at it is only called at regular interval, but job requires more time. Again, look at rabbitmq to check message flow to see if more instances are needed.
 
 # Web UI
 
@@ -162,16 +161,13 @@ bc_clean should also be scaled, but it needs less instances at it is only called
 ## in docker
 
     docker build -t osallou/bubble-web .
-    docker run -p 80:8000 -d -e CASSANDRA_HOST="192.168.101.131" -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web_record:app
+    docker run -p 80:8000 -d -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web_record:app
 
-Optionally add --link to your cassandra docker cluster:
+Optionally add --link to your databases docker cluster with according env variables (see docker-compose):
 
-    docker run -p 80:8000 -d -e CASSANDRA_HOST="mycassandra" --link mycassandra:mycassandra -e AUTH_SECRET="XXXX"  osallou/bubble-web gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web_record:app
 
 Other env vars:
 
- * CASSANDRA_HOST
- * CASSANDRA_CLUSTER
  * AUTH_SECRET (secret to use)
  * AUTH_DISABLE (disable token checks, users can access any container)
 

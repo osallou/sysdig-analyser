@@ -199,35 +199,6 @@ class RetentionHandler(object):
     def __get_ts(self, event_date):
         return int(time.mktime(event_date.timetuple())*1000)
 
-    def __delete_old(self, container):
-        logging.debug('Request cleanup of %s' % (container))
-        now = datetime.datetime.now()
-        self.redis_client.set('bc:' + container + ':last_delete', time.mktime(now.timetuple()))
-        try:
-            self.channel.basic_publish(
-                exchange='',
-                routing_key='bc_clean',
-                body=json.dumps({'event': {'container': container}}),
-                properties=pika.BasicProperties(
-                    # make message persistent
-                    delivery_mode=2
-                ))
-        except Exception as e:
-            logging.exception('Failed to send clean event: ' + str(e))
-
-
-
-    def __cleanup(self, container):
-        last_delete = self.redis_client.get('bc:' + container + ':last_delete')
-        if last_delete is None:
-            self.__delete_old(container)
-        else:
-            now = datetime.datetime.now()
-            last_delete_date = datetime.datetime.fromtimestamp(float(last_delete))
-            if last_delete_date < now - datetime.timedelta(seconds=60*10):
-                self.__delete_old(container)
-
-
     def is_cgroup(self, data_cgroup):
         if data_cgroup.startswith('/'):
             return True

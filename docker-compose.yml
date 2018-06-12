@@ -1,6 +1,40 @@
  version: '2'
 
  services:
+    bc-neo4j:
+        image: neo4j
+        volumes:
+            - ${BCROOTDIR}/neo4j/data:/data
+        ports:
+            - "7474:7474"
+            - "7687:7687"
+    bc-mysql:
+        image: mariadb
+        environment:
+          - MYSQL_ROOT_PASSWORD=bc
+          - MYSQL_DATABASE=bc
+          - MYSQL_USER=bc
+          - MYSQL_PASSWORD=bc
+        volumes:
+            - ${BCROOTDIR}/mysql:/var/lib/mysql
+        #ports:
+        #    - "3306:3306"
+
+    bc-influxdb:
+        image: influxdb
+        environment:
+          - INFLUXDB_ADMIN_ENABLED=true
+          - INFLUXDB_ADMIN_USER=admin
+          - INFLUXDB_ADMIN_PASSWORD=bc
+          - INFLUXDB_DB=bc
+          - INFLUXDB_USER=bc
+          - INFLUXDB_USER_PASSWORD=bc
+        ports:
+            - "8083:8083"
+            - "8086:8086"
+        volumes:
+            - ${BCROOTDIR}/influxdb:/var/lib/influxdb
+
     bc-rabbitmq:
         image: rabbitmq
         hostname: sysdig-rabbitmq
@@ -12,11 +46,6 @@
 
     bc-redis:
         image: redis
-
-    bc-cassandra:
-        image: cassandra
-        volumes:
-            - ${BCROOTDIR}/cassandra:/var/lib/cassandra
 
     bc-consul:
         image: consul
@@ -38,7 +67,8 @@
         ports:
             - "8000:8000"
         depends_on:
-            - bc-cassandra
+            - bc-mysql
+            - bc-influxdb
         command: gunicorn -c /root/sysdig-analyser/gunicorn_conf.py --bind 0.0.0.0 bc_web_record:app
 
     bc-record:
@@ -50,20 +80,9 @@
             - RABBITMQ_USER=test
             - RABBITMQ_PASSWORD=test
             - REDIS_HOST=bc-redis
+            - BC_MYSQL_URL=mysql+mysqldb://bc:bc@bc-mysql/bc
         depends_on:
-            - bc-cassandra
+            - bc-mysql
+            - bc-influxdb
             - bc-rabbitmq
         command: python bc_record.py listen --debug
-
-    bc-clean:
-        image: osallou/bubble-web
-        environment:
-            - CASSANDRA_HOST=bc-cassandra
-            - CASSANDRA_CLUSTER=sysdig
-            - RABBITMQ_HOST=bc-rabbitmq
-            - RABBITMQ_USER=test
-            - RABBITMQ_PASSWORD=test
-        depends_on:
-            - bc-cassandra
-            - bc-rabbitmq
-        command: python bc_clean.py listen --debug

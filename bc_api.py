@@ -4,27 +4,37 @@ import logging
 import string
 import random
 import sys
+import yaml
 
-from cassandra.cluster import Cluster
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-def __cassandra_update_api(session, key, owner):
-        session.execute(
-        """
-        UPDATE api
-        SET owner = %s
-        WHERE id=%s
-        """,
-        (owner, key)
-        )
+from bubblechamber.model import Base
+from bubblechamber.model import File as BCFile
+from bubblechamber.model import Process as BCProcess
+from bubblechamber.model import Container as BCContainer
+from bubblechamber.model import ApiKey as BCApiKey
 
-def __cassandra_delete_api(session, key):
-        session.execute(
-        """
-        DELETE FROM api
-        WHERE id=%s
-        """,
-        [key]
-        )
+def __load_config(debug):
+    config_file = 'config.yml'
+    if 'BC_CONFIG' in os.environ:
+            config_file = os.environ['BC_CONFIG']
+
+    config = {}
+    if os.path.exists(config_file):
+        with open(config_file, 'r') as ymlfile:
+            config = yaml.load(ymlfile)
+
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+    if os.environ.get('BC_MYSQL_URL', None):
+        config['mysql']['url'] = os.environ['BC_MYSQL_URL']
+
+    return config
+
 
 @click.group()
 def run():
@@ -32,53 +42,46 @@ def run():
 
 @run.command()
 @click.option('--api', help='API key')
-@click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
-@click.option('--cluster', default='sysdig', help='cassandra cluster name')
-def delete(api, host, cluster):
-    session =  None
+@click.option('--debug', help="set log level to debug", is_flag=True)
+def delete(api, debug):
     if not api:
         print("Api key missing")
         sys.exit(1)
 
-    if len(host) == 0:
-        host_list = ['127.0.0.1']
+    cfg =  __load_config(debug)
+    engine = create_engine(cfg['mysql']['url'], pool_recycle=3600, echo=cfg['mysql'].get('debug', False))
+    maker = sessionmaker(bind=engine)
+    sqlSession = maker()
+    # generate api key
+    bc_apikey = sqlSession.query(BCApiKey).filter_by(key=api).first()
+    if bc_apikey:
+        sqlSession.delete(bc_apikey)
+        sqlSession.commit()
     else:
-        host_list = list(host)
-
-    try:
-        cassandra_cluster = Cluster(host_list)
-        session = cassandra_cluster.connect(cluster)
-        session.default_timeout = 30.0
-    except Exception as e:
-        logging.error("Cassandra connection error: " + str(e))
-        sys.exit(1)
-    __cassandra_delete_api(session ,api)
+        print("No matching apikey found")
+    sqlSession.close()
 
 @run.command()
 @click.option('--owner', help='API key user owner')
-@click.option('--host', help='cassandra host, can specify multiple host', multiple=True)
-@click.option('--cluster', default='sysdig', help='cassandra cluster name')
-def create(owner, host, cluster):
-    session = None
+@click.option('--debug', help="set log level to debug", is_flag=True)
+def create(owner, debug):
     if not owner:
         print("Owner missing")
         sys.exit(1)
 
-    if len(host) == 0:
-        host_list = ['127.0.0.1']
-    else:
-        host_list = list(host)
-
-    try:
-        cassandra_cluster = Cluster(host_list)
-        session = cassandra_cluster.connect(cluster)
-        session.default_timeout = 30.0
-    except Exception as e:
-        logging.error("Cassandra connection error: " + str(e))
-        sys.exit(1)
+    cfg =  __load_config(debug)
+    engine = create_engine(cfg['mysql']['url'], pool_recycle=3600, echo=cfg['mysql'].get('debug', False))
+    maker = sessionmaker(bind=engine)
+    sqlSession = maker()
     # generate api key
     key = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(10))
-    __cassandra_update_api(session, key, owner)
+    bc_apikey = BCApiKey(
+        key=key,
+        email=owner
+    )
+    sqlSession.add(bc_apikey)
+    sqlSession.commit()
+    sqlSession.close()
     print("Api key: %s" % (key))
     return key
 

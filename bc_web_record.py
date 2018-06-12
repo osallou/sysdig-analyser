@@ -211,6 +211,7 @@ def __cassandra_select_mem(container, interval='s', top=10):
     sql_session = sql_session_maker()
     cont = sql_session.query(BCContainer).filter_by(container=container).first()
     if not cont:
+        sql_session.close()
         return {}
     cont_last_updated = cont.last_updated
     sql_session.close()
@@ -285,6 +286,7 @@ def __cassandra_select_io_ts(container, proc_id, interval='s', system=False, top
     sql_session = sql_session_maker()
     cont = sql_session.query(BCContainer).filter_by(container=container).first()
     if not cont:
+        sql_session.close()
         return {}
     cont_last_updated = cont.last_updated
     sql_session.close()
@@ -379,6 +381,7 @@ def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
     sql_session = sql_session_maker()
     cont = sql_session.query(BCContainer).filter_by(container=container).first()
     if not cont:
+        sql_session.close()
         return {}
     cont_last_updated = cont.last_updated
     sql_session.close()
