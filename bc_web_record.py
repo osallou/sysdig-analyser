@@ -210,6 +210,8 @@ def __select_procs(container):
 def __cassandra_select_mem(container, interval='s', top=10):
     sql_session = sql_session_maker()
     cont = sql_session.query(BCContainer).filter_by(container=container).first()
+    if not cont:
+        return {}
     cont_last_updated = cont.last_updated
     sql_session.close()
     rows = []
@@ -282,6 +284,8 @@ def __cassandra_select_mem(container, interval='s', top=10):
 def __cassandra_select_io_ts(container, proc_id, interval='s', system=False, top=10):
     sql_session = sql_session_maker()
     cont = sql_session.query(BCContainer).filter_by(container=container).first()
+    if not cont:
+        return {}
     cont_last_updated = cont.last_updated
     sql_session.close()
     group_interval = '10s'
@@ -308,14 +312,14 @@ def __cassandra_select_io_ts(container, proc_id, interval='s', system=False, top
     top_procs = {}
     tmp_result = {}
     res = __influx_query(query)
-    logging.error(query)
+    # logging.error(query)
     series = res.get('series', None)
     # logging.error(str(res))
     if not series:
         return {}
 
     for serie in series:
-        logging.error(json.dumps(serie))
+        # logging.error(json.dumps(serie))
         if proc_id and proc_id != serie['tags']['proc']:
             continue
         proc_id = serie['tags']['proc']
@@ -374,6 +378,8 @@ def __cassandra_select_io(container, proc_id=None, interval=None, system=False, 
 def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
     sql_session = sql_session_maker()
     cont = sql_session.query(BCContainer).filter_by(container=container).first()
+    if not cont:
+        return {}    
     cont_last_updated = cont.last_updated
     sql_session.close()
     rows = []

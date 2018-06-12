@@ -287,9 +287,11 @@
         var cpu_data = [];
         var procs = [];
         var groups = [];
+        var has_data = false;
         for(var key in data){
             var ok = false;
             for(var i=0;i<data[key].length;i++){
+                var has_data = true;
                 var key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
                 if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
                     continue;
@@ -305,7 +307,9 @@
                 groups.push({"id": key, "content": proc_list[key]+"("+key+")"});
             }
         }
-        time_selection();
+        if(has_data) {
+            time_selection();
+        }
         return {"data": cpu_data, "groups": groups, "procs": procs};
     }
 
@@ -396,14 +400,16 @@
             treenode[dataelt["parent"]].push({"id": dataelt["id"], "name": dataelt["name"],"is_root": dataelt["is_root"]});
         }
 
+
         var root = treenode[parent];
+        /*
         if(root == undefined) {
             $("#proc_info").append(proc_info);
             $("#proc_table").DataTable();
             return result;
-        }
+        }*/
 
-
+        // console.log(treenode);
         for(var key in treenode) {
             var elt = treenode[key];
             for(var j=0;j<elt.length;j++){
@@ -416,6 +422,7 @@
                 result["edges"].push({"from": key, "to": subchild["id"], arrows:"to"});
             }
         }
+
 
         treenode = null;
 
@@ -559,6 +566,7 @@
             var graph2d = new vis.Graph2d(container, dataset, cpu0.groups, options);
             $("#cpu_proc").html("");
             var proc_selection = "";
+            nb_process = 0;
             for(var i=0; i<cpu0.procs.length;i++){
                 var proc_name = proc_list[cpu0.procs[i]];
                 nb_process++;
