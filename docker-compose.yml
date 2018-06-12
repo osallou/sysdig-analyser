@@ -58,12 +58,11 @@
     bc-web:
         image: osallou/bubble-web
         environment:
-            - CASSANDRA_HOST=bc-cassandra
-            - CASSANDRA_CLUSTER=sysdig
             - RABBITMQ_HOST=bc-rabbitmq
             - RABBITMQ_USER=test
             - RABBITMQ_PASSWORD=test
             - AUTH_DISABLE=1
+            - BC_MYSQL_URL=mysql+mysqldb://bc:bc@bc-mysql/bc
         ports:
             - "8000:8000"
         depends_on:
