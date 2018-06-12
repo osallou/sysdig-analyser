@@ -239,7 +239,7 @@ def __cassandra_select_mem(container, interval='s', top=10):
     logging.debug('Query stats after ' + str(start_time))
     start_time = time.mktime(start_time.timetuple()) * 1000000000
     up_to = time.mktime(cont_last_updated.timetuple()) * 1000000000
-    query = 'select SUM("bytes") from "bc:container:%s:mem:vm_size" where time >= %d and time <= %d group by time(%s),"proc";' % (container, start_time, up_to, group_interval)
+    query = 'select MAX("bytes") from "bc:container:%s:mem:vm_size" where time >= %d and time <= %d group by time(%s),"proc";' % (container, start_time, up_to, group_interval)
     # logging.error(str(query))
     res = __influx_query(query)
     # logging.error(json.dumps(res))
@@ -379,7 +379,7 @@ def __cassandra_select_cpu(container, proc_id=None, interval='s', top=10):
     sql_session = sql_session_maker()
     cont = sql_session.query(BCContainer).filter_by(container=container).first()
     if not cont:
-        return {}    
+        return {}
     cont_last_updated = cont.last_updated
     sql_session.close()
     rows = []

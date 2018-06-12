@@ -236,7 +236,7 @@
     }
 
     function get_per_cpu(data, proc_id){
-        var sub = 1;
+        var sub = 10;
         if(interval == "m") {
             sub = 60;
         }
@@ -264,6 +264,7 @@
                 cpu_list.push(data[proc_id][i]['cpu']);
             }
             */
+
             metric = {"x": new Date(data[proc_id][i]["ts"]*1000), "y": data[proc_id][i]["duration"] * 100 / (1000000000 * sub), "group": "cpu"}
             cpu_data.push(metric);
 
@@ -273,7 +274,7 @@
 
 
     function get_cpu_all(data){
-        var sub = 1;
+        var sub = 10;
         if(interval == "m") {
             sub = 60;
         }
@@ -389,6 +390,7 @@
             else if(dataelt["is_root"] == 1) {
                 parent = dataelt["id"];
             }
+
             if(i<1000) {
                 proc_info += "<tr><td>" + dataelt["id"]+ "</td><td>" + dataelt["exe"] + "</td><td>" + dataelt["args"] + "</td></tr>";
             }
@@ -575,7 +577,7 @@
             $("#gb_process").text(nb_process);
             $("#cpu_proc").append(proc_selection);
             $("#time_selector").prop('disabled', false);
-            return cpu0.procs;
+            // return cpu0.procs;
         });
     }
 
@@ -615,8 +617,8 @@
             var procs = get_procs(data['data']);
             load_io(container_id);
             load_io_interval(container_id);
-            top_procs = load_cpu(container_id);
-            top_mem = load_mem(container_id);
+            load_cpu(container_id);
+            load_mem(container_id);
             var container = document.getElementById('procs_relationship');
             $("#proc_loading").hide();
             if(procs.nodes.length<100){
