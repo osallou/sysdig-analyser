@@ -13,7 +13,6 @@ from bson import json_util
 
 import redis
 import pika
-# from cassandra.cluster import Cluster
 from progressbar import Percentage, ProgressBar, Bar
 import click
 

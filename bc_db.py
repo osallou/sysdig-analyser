@@ -1,5 +1,5 @@
 '''
-Manage cassandra db init and upgrades
+Manage db init and upgrades
 '''
 import os
 import sys

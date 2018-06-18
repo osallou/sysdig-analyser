@@ -6,7 +6,7 @@ It provides a live and past view of container usage, on a per process basis. Con
 You get usage info on a per second/minute/hour/day basis, each timeframe keeping data for a configurable amount of time (for example per seconds usage is kept for 1 hour, while per minute usage is kept for 2 days).
 You can see which process, and when is consuming cpu or ram, as well as all files or remote networks accessed by the processes.
 
-The web interface gives a live view of the container, but view can also be seen after the container is over as all records are stored in a database (Cassandra). An API is also available to query raw recorded data.
+The web interface gives a live view of the container, but view can also be seen after the container is over as all records are stored in a database. An API is also available to query raw recorded data.
 
 Bubble-chamber does not keep track of all system events, like Sysdig, it only records main usage and access information.
 

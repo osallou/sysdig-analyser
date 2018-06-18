@@ -61,7 +61,7 @@ setup(
 
     packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
 
-    install_requires=['cassandra-driver',
+    install_requires=[
                       'mongo',
                       'progressbar',
                       'flask',
@@ -75,7 +75,6 @@ setup(
                       'influxdb',
                       'SQLAlchemy',
                       'MySQL-Python'
-
                      ],
     scripts=[
             'bc_api.py',

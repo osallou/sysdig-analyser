@@ -18,7 +18,7 @@ from prometheus_client import Counter, Histogram
 from prometheus_client.exposition import generate_latest
 from prometheus_client import multiprocess
 from prometheus_client import CollectorRegistry
-# from cassandra.cluster import Cluster
+
 import consul
 import pika
 import influxdb
@@ -58,18 +58,6 @@ if 'prefix' not in config['web'] or not config['web']['prefix']:
 if 'BC_PREFIX' in os.environ and os.environ['BC_PREFIX']:
     config['web']['prefix'] = os.environ['BC_PREFIX']
 
-cassandra_hosts = ['127.0.0.1']
-cassandra_cluster = 'sysdig'
-if 'cassandra' in config:
-    if 'hosts' in config['cassandra']:
-        cassandra_hosts = config['cassandra']['hosts']
-    if 'cluster' in config['cassandra']:
-        cassandra_cluster = config['cassandra']['cluster']
-
-if 'CASSANDRA_HOST' in os.environ:
-    cassandra_hosts = [os.environ['CASSANDRA_HOST']]
-if 'CASSANDRA_CLUSTER' in os.environ:
-    cassandra_cluster = os.environ['CASSANDRA_CLUSTER']
 
 if 'AUTH_SECRET' in os.environ:
     config['auth']['secret'] = os.environ['AUTH_SECRET']
@@ -91,10 +79,6 @@ if 'INFLUXDB_PASSWORD' in os.environ:
 if os.environ.get('BC_MYSQL_URL', None):
     config['mysql']['url'] = os.environ['BC_MYSQL_URL']
 
-'''
-cluster = Cluster(cassandra_hosts)
-session = cluster.connect(cassandra_cluster)
-'''
 
 rabbit = 'localhost'
 if 'RABBITMQ_HOST' in os.environ:
@@ -554,7 +538,6 @@ def container_io(cid):
     else:
         top_res = int(top_res)
     return jsonify(__cassandra_select_io(cid, interval=interval, system=system, top=top_res))
-    return jsonify({})
 
 
 @app.route("/event", methods=['POST'])
