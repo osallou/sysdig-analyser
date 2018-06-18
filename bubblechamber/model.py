@@ -23,7 +23,7 @@ class Container(Base):
     __tablename__ = 'containers'
 
     container = Column(String(64), primary_key=True)
-    created_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=datetime.now)
     last_updated = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     cpu_resa = Column(Integer, default=0)
     mem_resa = Column(Integer, default=0)
