@@ -97,9 +97,10 @@ class RetentionHandler(object):
 
 @run.command()
 @click.option('--days', help='delete container stats older then X days')
+@click.option('--daemon', help="run indefinitely", is_flag=True)
 @click.option('--container', help='id of container to delete')
 @click.option('--debug', help="set log level to debug", is_flag=True)
-def clean(days, container, debug):
+def clean(days, daemon, container, debug):
     config_file = 'config.yml'
     if 'BC_CONFIG' in os.environ:
             config_file = os.environ['BC_CONFIG']
@@ -146,6 +147,12 @@ def clean(days, container, debug):
 
     if days:
         rtHandler.delete_old(int(days))
+        if daemon:
+            print("Run in daemon mode, check every 24h")
+            while True:
+                # sleep 24h
+                time.sleep(3600*24)
+                rtHandler.delete_old(int(days))
 
     if container:
         rtHandler.delete_container(container)
