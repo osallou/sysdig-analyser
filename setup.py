@@ -70,7 +70,7 @@ setup(
                       'PyJWT',
                       'prometheus_client',
                       'python-consul',
-                      'pika',
+                      'pika==0.12.0',
                       'influxdb',
                       'SQLAlchemy',
                       'MySQL-Python'
