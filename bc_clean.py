@@ -55,6 +55,7 @@ class RetentionHandler(object):
         #for proc in procs:
         #    logging.error(proc)
         sql_session.query(BCProcess).filter_by(container=container.container).delete(synchronize_session='fetch')
+        sql_session.query(BCFile).filter_by(container=container.container).delete(synchronize_session='fetch')
         sql_session.commit()
         measurements = [
             "bc:container:" + container.container+ ":cpu:duration",
@@ -75,11 +76,13 @@ class RetentionHandler(object):
         sql_session = self.SqlSession()
         #sql_session.query(BCFile).filter_by(container=container).order_by(BCFile.last_updated).all()
         containers = sql_session.query(BCContainer).filter(BCContainer.last_updated < now).all()
+        count = 0
         for container in containers:
             logging.info("Delete container stats: "+str(container.container))
             self.__delete_container_stats(sql_session, container)
-
+            count += 1
         sql_session.close()
+        logging.info("Deleted %d containers" % (count))
 
     def delete_container(self, cid):
         logging.warn('Delete container %s stats ' % (cid))
