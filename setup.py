@@ -71,7 +71,6 @@ setup(
                       'prometheus_client',
                       'python-consul',
                       'pika',
-                      'redis',
                       'influxdb',
                       'SQLAlchemy',
                       'MySQL-Python'

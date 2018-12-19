@@ -621,7 +621,7 @@
             load_mem(container_id);
             var container = document.getElementById('procs_relationship');
             $("#proc_loading").hide();
-            if(procs.nodes.length<100){
+            if(procs.nodes.length<200){
                 var nodes = new vis.DataSet(procs.nodes);
                 var edges = new vis.DataSet(procs.edges);
                 var netdata = {

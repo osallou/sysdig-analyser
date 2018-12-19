@@ -12,7 +12,6 @@ import sys
 
 from bson import json_util
 
-import redis
 from progressbar import Percentage, ProgressBar, Bar
 import click
 
@@ -44,10 +43,6 @@ class RetentionHandler(object):
             password = self.cfg['influxdb']['password']
             database = self.cfg['influxdb']['db']
             self.db_influx = influxdb.InfluxDBClient(host, port, username, password, database)
-
-        redis_host = self.cfg['redis']['host']
-        redis_port = self.cfg['redis'].get('port', 6379)
-        self.redis_client = redis.Redis(host=redis_host, port=redis_port)
 
     def __delete_container_stats(self, sql_session, container):
         sql_session.delete(container)
@@ -124,10 +119,6 @@ def clean(days, daemon, container, debug):
     if 'RABBITMQ_USER' in os.environ and 'RABBITMQ_PASSWORD' in os.environ:
             config['rabbitmq']['user'] = os.environ['RABBITMQ_USER']
             config['rabbitmq']['password'] = os.environ['RABBITMQ_PASSWORD']
-    if 'REDIS_HOST' in os.environ:
-            config['redis']['host'] = os.environ['REDIS_HOST']
-    if 'REDIS_PORT' in os.environ:
-            config['redis']['host'] = int(os.environ['REDIS_PORT'])
 
     if 'INFLUXDB_HOST' in os.environ:
         config['influxdb']['host'] = os.environ['INFLUXBD_HOST']

@@ -19,7 +19,7 @@ Apache 2.0 (see https://www.apache.org/licenses/LICENSE-2.0)
 
     python setup.py install
 
-System: mariadb, influxdb, rabbitmq, redis
+System: mariadb, influxdb, rabbitmq
 
 # Screenshots
 
@@ -36,7 +36,7 @@ System: mariadb, influxdb, rabbitmq, redis
     docker-compose up -d
 
 
-Script launches influxdb, mariadb, consul, redis and bc web servers and record
+Script launches influxdb, mariadb, consul and bc web servers and record
 
 bc processes may fail to start as they need mariadb/influxdb/rabbitmq to be ready to accept connections.
 In this case, wait for mani processes to be ready and execute the command again.
@@ -46,7 +46,6 @@ Available env variables:
  * RABBITMQ_HOST=bc-rabbitmq
  * RABBITMQ_USER=test
  * RABBITMQ_PASSWORD=XXX
- * REDIS_HOST=bc-redis
  * BC_MYSQL_URL=mysql+mysqldb://bc:bc@bc-mysql/bc
 
 
@@ -108,6 +107,18 @@ You can use Dockerfile (in docker dir to create a sysdig image containing the lu
                osallou/bubble-chamber sysdig -pc -c sysdigdocker http://x.y.z/event/api/<APIKEY> -j
 
 x.y.z being the web ui address, possibly load-balanced
+
+### Enable/disable container monitoring
+
+By default, containers are not monitored
+
+To active/deactive container monitoring, app should write:
+
+
+    root@9f134ff557de:/# echo ">::monitor::" > /dev/null
+    ... do some stuff
+    root@9f134ff557de:/# echo "<::monitor::" > /dev/null
+
 
 
 ## Slurm monitoring

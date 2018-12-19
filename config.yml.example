@@ -14,9 +14,6 @@ influxdb:
     password: 'bc'
     db: 'bc'
 
-redis:
-    host: 'bc-redis'
-
 auth:
     # Expect a JWT token in authorization header,
     # check that container id in token match requested container

@@ -109,7 +109,7 @@ else:
 channel = connection.channel()
 
 
-sql_engine = create_engine(config['mysql']['url'], pool_recycle=3600, echo=config.get('debug', False))
+sql_engine = create_engine(config['mysql']['url'], pool_pre_ping=True, pool_recycle=3600, echo=config.get('debug', False))
 sql_session_maker = sessionmaker(bind=sql_engine)
 
 def __cassandra_load_api():
