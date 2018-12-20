@@ -2,16 +2,22 @@
 <head>
     <script src="bower_components/jquery/dist//jquery.min.js"></script>
     <script src="bower_components/d3/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>    
     <script src="metrics-graphics-2.11.0/dist/metricsgraphics.min.js"></script>
     <script src="bower_components/vis/dist/vis.min.js"></script>
-    <script src="bower_components/datatables.net/js/jquery.dataTables.min.js"></script>
-    <script src="bower_components/datatables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.18/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.18/js/dataTables.bootstrap4.min.js"></script>
+    <!--<script src="https://cdn.jsdelivr.net/npm/vue"></script>-->
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://unpkg.com/vue-router/dist/vue-router.js"></script>
+
     <!--<script src="bower_components/seiyria-bootstrap-slider/dist/bootstrap-slider.min.js"></script>-->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.9.0/bootstrap-slider.min.js"></script>
-    <link href="bower_components/bootstrap/dist/css/bootstrap.min.css" type="text/css" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
     <link href="metrics-graphics-2.11.0/dist/metricsgraphics.css" type="text/css" rel="stylesheet"/>
     <link href="bower_components/vis/dist/vis.min.css" type="text/css" rel="stylesheet"/>
-    <link href="bower_components/datatables/media/css/dataTables.bootstrap.min.css" type="text/css" rel="stylesheet"/>
+    <link href="https://cdn.datatables.net/1.10.18/css/dataTables.bootstrap4.min.css" type="text/css" rel="stylesheet"/>
     <!--$<link href="bower_components/seiyria-bootstrap-slider/dist/css/bootstrap-slider.min.css" type="text/css" rel="stylesheet"/>-->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/9.9.0/css/bootstrap-slider.min.css" type="text/css" rel="stylesheet"/>
 
@@ -41,693 +47,156 @@
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-default">
-      <div class="container-fluid">
-        <!-- Brand and toggle get grouped for better mobile display -->
-        <div class="navbar-header">
-          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
-            <span class="sr-only">Toggle navigation</span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="navbar-brand" href="#">Bubble Chamber - container insights</a>
-        </div>
-
-        <!-- Collect the nav links, forms, and other content for toggling -->
-        <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
-          <ul class="nav navbar-nav">
-            <li><a href="#cpu_tab">CPU</a></li>
-            <li><a href="#memory_tab">Memory</a></li>
-            <li><a href="#proc_tab">Processes</a></li>
-            <li><a href="#io_tab">IO</a></li>
-            <li class="dropdown">
-                <a href="#"  data-toggle="dropdown" class="dropdown-toggle">Time scale <b class="caret"></b></a>
-                <ul class="dropdown-menu">
-                    <li><a href="#" id="show_cpu_s">seconds</a></li>
-                    <li><a href="#" id="show_cpu_m">minutes</a></li>
-                    <li><a href="#" id="show_cpu_h">hours</a></li>
-                    <li><a href="#" id="show_cpu_d">days</a></li>
-                </ul>
-            </li>
-          </ul>
-
-        </div><!-- /.navbar-collapse -->
-      </div><!-- /.container-fluid -->
+<div id="app">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+                <a class="navbar-brand" href="#">Bubble Chamber</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon"></span>
+                </button>
+              
+                <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                  <ul class="navbar-nav mr-auto">
+                    <li class="nav-item" v-on:click="showTab(1)"><a class="nav-link" href="#">Procs</a></li>
+                    <li class="nav-item" v-on:click="showTab(2)"><a class="nav-link" href="#">Cpu</a></li>
+                    <li class="nav-item" v-on:click="showTab(3)"><a class="nav-link" href="#">Mem</a></li>
+                    <li class="nav-item" v-on:click="showTab(4)"><a class="nav-link" href="#">Io</a></li>
+                    <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    Time scale
+                                  </a>
+                            <div class="dropdown-menu"  aria-labelledby="navbarDropdown">
+                                <a class="dropdown-item" href="#" id="show_cpu_s" v-on:click="changeRange('s')">seconds</a>
+                                <a class="dropdown-item" href="#" id="show_cpu_m" v-on:click="changeRange('m')">minutes</a>
+                                <a class="dropdown-item" href="#" id="show_cpu_h" v-on:click="changeRange('h')">hours</a>
+                                <a class="dropdown-item"href="#" id="show_cpu_d" v-on:click="changeRange('d')">days</a>
+                            </div>
+                    </li>
+                </div>
     </nav>
+    
+    <div class="row" id="msg"></div>
+    <proc v-if="showtab == 1" :proclist="proclist"></proc>
+    <cpu v-if="showtab == 2" :proclist="proclist" :interval="interval"></cpu>
+    <mem v-if="showtab == 3" :proclist="proclist" :interval="interval"></mem>
+    <io v-if="showtab == 4" :proclist="proclist" :interval="interval"></io>
+    
+</div>
 
-    <div class="container">
 
-        <div class="row" id="msg"></div>
-
-        <div class="row" id="time_tab">
-            <div class="panel panel-primary">
-                <div class="panel-heading">
-                    Time selector
+<script type="text/x-template" id="proc">
+    <div class="card">
+            <div class="card-header">Processes</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div><button type="button" class="btn btn-primary btn-badge" >Number of process <span class="badge pull-right">{{nbprocess}}</span></button></div>
+                    </div>
                 </div>
-                <div class="panel-body">
-                    <input id="time_selector" data-slider-id='time_selector' type="text"/>
-                </div>
+                <div class="row" id="proc_tab">
+                        <div class="card">
+                            <div class="card-header">Details (last 1000 ids)</div>
+                            <div class="card-body">
+                                    <div id="procs_relationship">
+                                    </div>
+                                    <table id="proc_table" class="display table table-condensed table-striped table-bordered">
+                                        <thead>
+                                            <tr><td>Process id</td><td>Exe</td><td>Args</td></tr>
+                                        </thead>
+                                        <tbody id="proc_info">
+                                        </tbody>
+                                    </table>
+                            </div>
+                        </div>
+                    </div>
             </div>
-        </div>
-
+    </div>
+</script>
+<script type="text/x-template" id="cpu">
+<div class="card">
+    <div class="card-header">CPU</div>
+    <div class="card-body">
         <div class="row">
-            <div class="col-md-3">
-                <h3>Processes</h3>
-                <div><button type="button" class="btn btn-primary btn-badge" >Number of process <span class="badge pull-right" id="gb_process"></span></button></div>
-            </div>
-            <div class="col-md-3">
-                <h3>Files</h3>
-                <div><button type="button" class="btn btn-primary btn-badge">In+Out <span class="badge pull-right" id="gb_io_files_in_out"></span></button></div>
-                <div><button type="button" class="btn btn-primary btn-badge">In <span class="badge pull-right" id="gb_io_files_in"></span></button></div>
-                <div><button type="button" class="btn btn-primary btn-badge">Out <span class="badge pull-right" id="gb_io_files_out"></span></button></div>
-                <div><button type="button" class="btn btn-primary btn-badge">Access <span class="badge pull-right" id="gb_io_files_access"></span></button></div>
-                <div><button type="button" class="btn btn-primary btn-badge">Modified <span class="badge pull-right" id="gb_io_files_modified"></span></button></div>
-            </div>
-            <div class="col-md-3">
-                <h3>Network</h3>
-                <div><button type="button" class="btn btn-primary btn-badge">In+Out <span class="badge pull-right" id="gb_io_network_in_out"></span></button></div>
-                <div><button type="button" class="btn btn-primary btn-badge">In <span class="badge pull-right" id="gb_io_network_in"></span></button></div>
-                <div><button type="button" class="btn btn-primary btn-badge">Out <span class="badge pull-right" id="gb_io_network_out"></span></button></div>
-            </div>
-
-        </div>
-
-        <div class="row" id="cpu_tab">
-            <div class="panel panel-primary">
-                <div class="panel-heading">
-                    Top CPU (% of cpu, 100=1CPU)<button id="cpu_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button>
-                </div>
-                <div class="panel-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                        </div>
-                        <div class="col-md-6">
-                            <form class="form form-inline">
-                                <div class="form-group">
-                                    <span>Details </span>
-                                    <select class="form-control" id="cpu_proc">
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <button type="button" class="btn btn-primary" id="cpu_proc_show">show</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                                <div id="mychart_cpu0"></div>
-                        </div>
-                        <div class="col-md-6">
-                            <div id="mychart_cpu_details"></div>
-                        </div>
-                    </div>
-                </div>
+            <div class="col-md-6"></div>
+            <div class="col-md-6">
+                    <form class="form form-inline">
+                            <div class="form-group">
+                                <span>Details </span>
+                                <select class="form-control" id="cpu_proc">
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <button type="button" class="btn btn-primary" id="cpu_proc_show" v-on:click="showProc()">show</button>
+                            </div>
+                    </form>
             </div>
         </div>
-
-
-        <div class="row" id="memory_tab">
-            <div class="panel panel-primary">
-                <div class="panel-heading">Top Memory (Mb)<button id="mem_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
-                <div class="panel-body">
-                        <div class="row">
-                            <div id="mychart_mem"></div>
-                        </div>
-                </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div id="mychart_cpu0"></div>
             </div>
-        </div>
+            <div class="col-md-6">
+                <div id="mychart_cpu_details"></div>
 
-        <div class="row" id="io_interval_tab">
-            <div class="panel panel-primary">
-                <div class="panel-heading">IO (top 100)<button id="io_interval_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button><br/><input type="checkbox" id="io_system"> Include system IO</div>
-                <div class="panel-body">
-                        <div class="row">
-                            <div id="mychart_io_interval"></div>
-                        </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row" id="proc_tab">
-            <div class="panel panel-primary">
-                <div class="panel-heading">Processes (last 1000 ids)<button id="proc_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
-                <div class="panel-body">
-                        <div id="procs_relationship">
-                        </div>
-                        <table id="proc_table" class="display table table-condensed table-striped table-bordered">
-                            <thead>
-                                <th>Process id</th><th>Exe</th><th>Args</th>
-                            </thead>
-                            <tbody id="proc_info">
-                            </tbody>
-                        </table>
-                </div>
-            </div>
-        </div>
-
-        <div class="row" id="io_tab">
-            <div class="panel panel-primary">
-                <div class="panel-heading">IO <button id="io_loading" class="btn btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button></div>
-                <div class="panel-body">
-                    <table id="io_table" class="display table table-condensed table-striped table-bordered">
-                        <thead>
-                            <th>Process id</th><th>File name</th><th>Bytes in</th><th>Bytes out</th>
-                        </thead>
-                        <tbody id="io_all_list">
-                        </tbody>
-                    </table>
-                </div>
             </div>
         </div>
     </div>
+</div>
+</script>
+<script type="text/x-template" id="mem">
+    <div class="card">
+        <div class="card-header">Top Memory (Mb)</div>
+        <div class="card-body">
+            <div id="mychart_mem"></div>
+        </div>
+    </div>
+
+</script>
+<script type="text/x-template" id="io">
+    <div class="card">
+        <div class="card-header">IO</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-sm-6">
+                    <div class="card">
+                        <div class="card-header">Files</div>
+                        <div class="card-body">
+                            <div><button type="button" class="btn btn-primary btn-badge">In+Out <span class="badge pull-right" id="gb_io_files_in_out">{{gb_io_files_in_out}}</span></button></div>
+                            <div><button type="button" class="btn btn-primary btn-badge">In <span class="badge pull-right" id="gb_io_files_in">{{gb_io_files_in}}</span></button></div>
+                            <div><button type="button" class="btn btn-primary btn-badge">Out <span class="badge pull-right" id="gb_io_files_out">{{gb_io_files_out}}</span></button></div>
+                            <div><button type="button" class="btn btn-primary btn-badge">Access <span class="badge pull-right" id="gb_io_files_access">{{gb_io_files_access}}</span></button></div>
+                            <div><button type="button" class="btn btn-primary btn-badge">Modified <span class="badge pull-right" id="gb_io_files_modified">{{gb_io_files_modified}}</span></button></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="card">
+                        <div class="card-header">Network</div>
+                        <div class="card-body">
+                            <div><button type="button" class="btn btn-primary btn-badge">In+Out <span class="badge pull-right" id="gb_io_network_in_out">{{gb_io_network_in_out}}</span></button></div>
+                            <div><button type="button" class="btn btn-primary btn-badge">In <span class="badge pull-right" id="gb_io_network_in">{{gb_io_network_in}}</span></button></div>
+                            <div><button type="button" class="btn btn-primary btn-badge">Out <span class="badge pull-right" id="gb_io_network_out">{{gb_io_network_out}}</span></button></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row" id="io_interval_tab">
+                <div class="col-sm-12" id="mychart_io_interval"></div>
+            </div>
+            <div class="row" id="io_tab">
+                            <table id="io_table" class="display table table-condensed table-striped table-bordered">
+                                <thead>
+                                    <tr><td>Process id</td><td>File name</td><td>Bytes in</td><td>Bytes out</td></tr>
+                                </thead>
+                                <tbody id="io_all_list">
+                                </tbody>
+                            </table>
+            </div>
+        </div>
+    </div>
+</script>
 
     <script>
-
-    var nb_cpus = 3;
-    var proc_list = {};
-
-
-    function get_memory_data(data){
-        var container_memory = data.containers.competent_thompson.memory;
-        memory_processes = [];
-        memory_data = [];
-        procs = {};
-        for(var key in container_memory){
-            var procdata = [];
-            for(var i=0;i<container_memory[key].length;i++){
-                var key_ts = new Date(container_memory[key][i]["ts"] / 1000000).getTime();
-                if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
-                    continue;
-                }
-                procs[key] = container_memory[key][i]["proc_name"]
-                    procdata.push({
-                        "date": new Date(container_memory[key][i]["ts"] / 1000000),
-                        "value": container_memory[key][i]["value"][0] * 1000
-                    });
-            }
-            memory_data.push(procdata);
-        }
-        for(var procid in procs){
-            memory_processes.push(procs[procid]);
-        }
-        return {"data": memory_data, "procs": memory_processes}
-    }
-
-    function get_per_cpu(data, proc_id){
-        var sub = 10;
-        if(interval == "m") {
-            sub = 60;
-        }
-        else if (interval == "h") {
-            sub = 3600;
-        }
-        else if (interval == "d") {
-            sub = 3600 * 24;
-        }
-
-        var cpu_data = [];
-        var procs = [];
-        var groups = [];
-        var cpu_list = [];
-        var groups = [{"id": "cpu", "content": "cpu"}];
-        for(var i=0;i<data[proc_id].length;i++){
-            var key_ts = new Date(data[proc_id][i]["ts"] * 1000).getTime();
-            if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
-                continue;
-            }
-            procs.push(proc_id);
-            /*
-            if(cpu_list.indexOf(data[proc_id][i]['cpu'])==-1) {
-                groups.push({'id': data[proc_id][i]['cpu'], "content": "cpu" + data[proc_id][i]['cpu']})
-                cpu_list.push(data[proc_id][i]['cpu']);
-            }
-            */
-
-            metric = {"x": new Date(data[proc_id][i]["ts"]*1000), "y": data[proc_id][i]["duration"] * 100 / (1000000000 * sub), "group": "cpu"}
-            cpu_data.push(metric);
-
-        }
-        return {"data": cpu_data, "groups": groups, "procs": procs};
-    }
-
-
-    function get_cpu_all(data){
-        var sub = 10;
-        if(interval == "m") {
-            sub = 60;
-        }
-        else if (interval == "h") {
-            sub = 3600;
-        }
-        else if (interval == "d") {
-            sub = 3600 * 24;
-        }
-
-        var cpu_data = [];
-        var procs = [];
-        var groups = [];
-        var has_data = false;
-        for(var key in data){
-            var ok = false;
-            for(var i=0;i<data[key].length;i++){
-                var has_data = true;
-                var key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
-                if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
-                    continue;
-                }
-                if(min==null || key_ts<min){min=key_ts;}
-                if(max==null || key_ts>max){max=key_ts;}
-                ok = true;
-                metric = {"x": new Date(data[key][i]["ts"]*1000), "y": data[key][i]["duration"] * 100 / (1000000000 * sub), "group": key}
-                cpu_data.push(metric);
-            }
-            if(ok) {
-                procs.push(key);
-                groups.push({"id": key, "content": proc_list[key]+"("+key+")"});
-            }
-        }
-        if(has_data) {
-            time_selection();
-        }
-        return {"data": cpu_data, "groups": groups, "procs": procs};
-    }
-
-    function get_mem(data){
-        var mem_data = [];
-        var procs = [];
-        var groups = [];
-        for(var key in data){
-            var ok = false;
-            for(var i=0;i<data[key].length;i++){
-                var key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
-                if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
-                    continue;
-                }
-                ok = true;
-                metric = {"x": new Date(data[key][i]["ts"]*1000), "y": data[key][i]["vm_size"]/1000, "group": key}
-                mem_data.push(metric);
-            }
-            if(ok){
-                procs.push(key);
-                groups.push({"id": key, "content": proc_list[key]+"("+key+")"});
-            }
-        }
-        return {"data": mem_data, "groups": groups, "procs": procs};
-    }
-
-    function get_io(data){
-        var io_data = [];
-        var procs = [];
-        var groups = [];
-        for(var key in data){
-            var ok = false;
-
-            for(var i=0;i<data[key].length;i++){
-
-                var key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
-                if(filter_min!=null && (key_ts<filter_min || key_ts>filter_max)){
-                    continue;
-                }
-
-                ok = true;
-                metric = {"x": new Date(data[key][i]["ts"]*1000), "y": (data[key][i]["bytes"])/1000, "group": key}
-                io_data.push(metric);
-            }
-            if(ok){
-                procs.push(key);
-                groups.push({"id": key, "content": proc_list[data[key][0]["proc_name"]] + ":" + key});
-            }
-        }
-        return {"data": io_data, "groups": groups, "procs": procs};
-    }
-
-    function get_procs(data){
-        // var proc_selection = "";
-        var proc_info = "";
-        var result = {"nodes": [], "edges": []}
-        treenode = {}
-        var parent = 1;
-        var parent_name = null;
-        var compare = function(a,b){
-                if(a.id < b.id) {return 1};
-                if(a.id > b.id) {return -1;}
-                return 0;
-            };
-        data.sort(compare);
-        for(var i=0;i<data.length;i++){
-            var dataelt = data[i];
-            if($.urlParam("root") != 0) {
-                if(dataelt["name"] == $.urlParam("root")){
-                    parent = dataelt["id"];
-                    dataelt["is_root"] = 1;
-                }
-                else {
-                    dataelt["is_root"] =0;
-                }
-            }
-            else if(dataelt["is_root"] == 1) {
-                parent = dataelt["id"];
-            }
-
-            if(i<1000) {
-                proc_info += "<tr><td>" + dataelt["id"]+ "</td><td>" + dataelt["exe"] + "</td><td>" + dataelt["args"] + "</td></tr>";
-            }
-            var dataelt = data[i];
-            proc_list[dataelt["id"]] = dataelt["name"];
-            if(treenode[dataelt["parent"]]==undefined){
-                treenode[dataelt["parent"]] = [];
-            }
-            treenode[dataelt["parent"]].push({"id": dataelt["id"], "name": dataelt["name"],"is_root": dataelt["is_root"]});
-        }
-
-
-        var root = treenode[parent];
-        /*
-        if(root == undefined) {
-            $("#proc_info").append(proc_info);
-            $("#proc_table").DataTable();
-            return result;
-        }*/
-
-        // console.log(treenode);
-        for(var key in treenode) {
-            var elt = treenode[key];
-            for(var j=0;j<elt.length;j++){
-                var subchild = elt[j];
-                var node = {"id":  subchild["id"], "label":  proc_list[subchild["id"]]+"("+ subchild["id"]+")"};
-                if(subchild["is_root"]) {
-                    node['color'] ="red";
-                }
-                result["nodes"].push(node);
-                result["edges"].push({"from": key, "to": subchild["id"], arrows:"to"});
-            }
-        }
-
-
-        treenode = null;
-
-        $("#proc_info").append(proc_info);
-        $("#proc_table").DataTable();
-        return result;
-    }
-
-    function load_io(container){
-        var show_system = $('#io_system').is(':checked');
-        d3.json("/container/"+container+"/io").header("Authorization", "token " + token).get(function(data) {
-            // console.log('io count', data);
-            var io_list = "";
-            var io_tmp = [];
-            var firsts = {"in": {}, "out": {}};
-            for(var key in data){
-                for(var i=0;i<data[key].length;i++){
-                    var elt = data[key][i];
-                    io_tmp.push({
-                        "count": elt['io_total'],
-                        "row": "<tr><td>" + proc_list[elt["proc_id"]] + "(" + elt["proc_id"] +")" + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>"
-                    });
-                    var filename = elt['file_name'];
-
-                    if(filename.startsWith("/")){
-                        if(data[key][i]["io_in"]>0){
-                            files_in += data[key][i]["io_in"];
-                            firsts.in.filename=1;
-                        }
-                        if(data[key][i]["io_out"]>0){
-                            files_out += data[key][i]["io_out"];
-                            firsts.out.filename=1;
-                        }
-                    }
-                    else {
-                        if(data[key][i]["io_in"]>0){
-                            network_in += data[key][i]["io_in"];
-                        }
-                        if(data[key][i]["io_out"]>0){
-                            network_out += data[key][i]["io_out"];
-                        }
-                    }
-                    if(filename.startsWith("/")){
-                        if(firsts.in.filename !== undefined && data[key][i]["io_in"]>0){
-                            files_access += 1;
-                        }
-                        if(firsts.out.filename && data[key][i]["io_out"]>0){
-                            files_modified += 1;
-                        }
-                    }
-                    if(! show_system) {
-                        if(filename.startsWith('/etc') || filename.startsWith('/usr') || filename.startsWith('/lib')) {
-                            continue;
-                        }
-                    }
-                }
-            }
-            // console.log('io', io_tmp);
-            var compare = function(a,b){
-                if(a.count < b.count) {return 1};
-                if(a.count > b.count) {return -1;}
-                return 0;
-            };
-            io_tmp.sort(compare);
-            for(var io=0;io<Math.min(100, io_tmp.length);io++){
-              io_list += io_tmp[io].row;
-            }
-
-            $("#io_loading").hide();
-            $("#io_all_list").html(io_list);
-            $("#io_table").DataTable();
-
-            $("#gb_io_files_in_out").text(files_in+files_out);
-            $("#gb_io_files_in").text(files_in);
-            $("#gb_io_files_out").text(files_out);
-            $("#gb_io_files_access").text(files_access);
-            $("#gb_io_files_modified").text(files_modified);
-            $("#gb_io_network_in_out").text(network_in+network_out);
-            $("#gb_io_network_in").text(network_in);
-            $("#gb_io_network_out").text(network_out);
-
-
-        });
-    }
-
-    function load_io_interval(container) {
-        var show_system = $('#io_system').is(':checked');
-        d3.json("/container/"+container+"/io" + '?interval=' + interval + '&system=' + show_system).header("Authorization", "token " + token).get(function(data) {
-            $("#mychart_io_interval").html("");
-            $("#io_interval_loading").hide();
-            var io = get_io(data);
-
-            var container = document.getElementById('mychart_io_interval');
-            var dataset = new vis.DataSet(io.data);
-            var options = {
-                style: 'bar',
-                stack: false,
-                drawPoints: false,
-                legend: true,
-            };
-            var graph2d = new vis.Graph2d(container, dataset, io.groups, options);
-
-        });
-    }
-
-
-    function load_per_cpu(container, proc_id){
-        d3.json('/container/'+container+'/cpu/' + proc_id + '?interval=' + interval).header('Authorization', 'token ' + token).get( function(data) {
-            $("#mychart_cpu_details").html("");
-            //cpu0 = get_cpu_data(data, '0');
-            cpu_data = get_per_cpu(data, proc_id);
-            // console.log(cpu0);
-            var container = document.getElementById('mychart_cpu_details');
-            var dataset = new vis.DataSet(cpu_data.data);
-            var options = {
-                style: 'line',
-                stack: false,
-                drawPoints: false,
-                legend: true,
-                //width: '800px',
-            };
-            var graph2d = new vis.Graph2d(container, dataset, cpu_data.groups, options);
-        });
-    }
-
-
-    function load_cpu(container){
-        d3.json('/container/'+container+'/cpu?interval=' + interval).header('Authorization', 'token ' + token).get(function(data) {
-            $("#mychart_cpu0").html("");
-            cpu0 = get_cpu_all(data);
-            $("#cpu_loading").hide();
-            var container = document.getElementById('mychart_cpu0');
-            var dataset = new vis.DataSet(cpu0.data);
-            var options = {
-                style: 'line',
-                stack: false,
-                drawPoints: false,
-                legend: true,
-                //width: '800px',
-            };
-            var graph2d = new vis.Graph2d(container, dataset, cpu0.groups, options);
-            $("#cpu_proc").html("");
-            var proc_selection = "";
-            nb_process = 0;
-            for(var i=0; i<cpu0.procs.length;i++){
-                var proc_name = proc_list[cpu0.procs[i]];
-                nb_process++;
-                proc_selection += "<option value=\"" + cpu0.procs[i] + "\">" + proc_name + "("+cpu0.procs[i]+")" + "</option>";
-            }
-            $("#gb_process").text(nb_process);
-            $("#cpu_proc").append(proc_selection);
-            $("#time_selector").prop('disabled', false);
-            // return cpu0.procs;
-        });
-    }
-
-    function load_mem(container){
-        d3.json('/container/'+container+'/mem?interval=' + interval).header('Authorization', 'token ' + token).get(function(data) {
-            $("#mychart_mem").html("");
-            $("#mem_loading").hide();
-            var mem = get_mem(data);
-
-            var container = document.getElementById('mychart_mem');
-            var dataset = new vis.DataSet(mem.data);
-            var options = {
-                style: 'line',
-                stack: false,
-                drawPoints: false,
-                legend: true,
-                //width: '800px',
-                dataAxis: {
-                    left: {
-                        title: {text: 'Mb'}
-                    }
-
-                }
-            };
-            var graph2d = new vis.Graph2d(container, dataset, mem.groups, options);
-            return mem.procs;
-        });
-    }
-
-    function load_proc(container_id){
-        $("#msg").html("");
-        d3.json('/container/'+container_id+'/proc').header('Authorization', 'token ' + token).get(function(data) {
-            if(data == undefined){
-                $("#msg").html("<span class=\"alert alert-danger\">Error: cannot get data</span>");
-                return;
-            }
-            var procs = get_procs(data['data']);
-            load_io(container_id);
-            load_io_interval(container_id);
-            load_cpu(container_id);
-            load_mem(container_id);
-            var container = document.getElementById('procs_relationship');
-            $("#proc_loading").hide();
-            if(procs.nodes.length<200){
-                var nodes = new vis.DataSet(procs.nodes);
-                var edges = new vis.DataSet(procs.edges);
-                var netdata = {
-                  nodes: nodes,
-                  edges: edges
-                };
-                /*
-                var options = {
-                    'height': '400px'
-                };
-                */
-                var options = {
-                    height: '400px'
-    ,                layout: {
-                        hierarchical: {
-                            direction: "UD",
-                            sortMethod: "directed"
-                        }
-                    },
-                    interaction: {dragNodes :false},
-                    physics: {
-                        enabled: false
-                    }
-                };
-                var network = new vis.Network(container, netdata, options);
-            }
-            else {
-                console.log('too many processes, do not show process graph');
-            }
-
-
-        });
-    }
-
-
-    var interval = 's';
-    var filter_min = null;
-    var filter_max = null;
-    var max = null;
-    var min=null;
-
-    var files_in=0;
-    var files_out=0;
-    var files_access=0;
-    var files_modified=0;
-    var network_in=0;
-    var network_out=0;
-    var nb_process=0;
-
-    function reset_interval(){
-        filter_min = null;
-        filter_max = null;
-        min = null;
-        max = null;
-    }
-
-    function reset_counters(){
-        files_in=0;
-        files_out=0;
-        files_access=0;
-        files_modified=0;
-        network_in=0;
-        network_out=0;
-        nb_process=0;
-    }
-
-    $("#cpu_proc_show").click(function(){
-        load_per_cpu($.urlParam('container'), $("#cpu_proc").val());
-    });
-
-    $("#show_cpu_s").click(function(){
-        interval = 's';
-        reset_interval();
-        load_cpu($.urlParam('container'));
-        load_mem($.urlParam('container'));
-        load_io_interval($.urlParam('container'));
-    });
-
-    $("#show_cpu_m").click(function(){
-        interval = 'm';
-        reset_interval();
-        load_cpu($.urlParam('container'));
-        load_mem($.urlParam('container'));
-        load_io_interval($.urlParam('container'));
-    });
-
-    $("#show_cpu_h").click(function(){
-        interval = 'h';
-        reset_interval();
-        load_cpu($.urlParam('container'));
-        load_mem($.urlParam('container'));
-        load_io_interval($.urlParam('container'));
-    });
-
-    $("#show_cpu_d").click(function(){
-        interval = 'd';
-        reset_interval();
-        load_cpu($.urlParam('container'));
-        load_mem($.urlParam('container'));
-        load_io_interval($.urlParam('container'));
-    });
-
-    $("#io_system").change(function() {
-        load_io_interval($.urlParam('container'));
-    });
-
 
 
     $.urlParam = function (name) {
@@ -739,7 +208,6 @@
     return results[1] || 0;
 }
 
-
     function to_time(val) {
         if (Array.isArray(val)) {
             return new Date(val[0]) + " : " + new Date(val[1]);
@@ -747,50 +215,589 @@
             return new Date(val);
         }
     }
-    function on_time_change(new_val) {
-        if(new_val[0]==filter_min && new_val[1]==filter_max){
-            return;
-        }
-        $("#time_selector").prop('disabled', true);
-        reset_counters();
-        filter_min = new_val[0];
-        filter_max = new_val[1];
-        load_proc($.urlParam('container'), interval);
-    }
-
-    function time_selection() {
-        var time_selector = $("#time_selector").bootstrapSlider();
-        var now = new Date();
-
-        if(filter_min==null){filter_min=min;}
-        if(filter_max==null){filter_max=max;}
-        var range = [filter_min, filter_max];
-        time_selector.bootstrapSlider('setAttribute', 'range', true);
-        time_selector.bootstrapSlider('setAttribute', 'max', max);
-        time_selector.bootstrapSlider('setAttribute', 'min', min);
-        time_selector.bootstrapSlider('setAttribute', 'step', 10);
-        time_selector.bootstrapSlider('setAttribute', 'formatter', to_time);
-        time_selector.bootstrapSlider('setValue', range);
-        time_selector.bootstrapSlider('on', 'slideStop', on_time_change);
-
-    }
 
     var token = 'fake';
     $(document).ready(function(){
         if($.urlParam('container') == 0) {
             $("#msg").html("<span class=\"alert alert-danger\">Error: missing query parameter: container</span>");
-            $("#io_loading").hide();
-            $("#io_interval_loading").hide();
-            $("#mem_loading").hide();
-            $("#cpu_loading").hide();
-            $("#proc_loading").hide();
             return;
         }
-        interval = 's';
         token = $.urlParam('token');
-        load_proc($.urlParam('container'),'s');
-
     });
+
+
+    const EventBus = new Vue();
+
+
+    var Proc = {
+        template: '#proc',
+        data: function() {
+            return {
+                procs: [],
+                proclist: {},
+                nbprocess: 0,
+            }
+        },
+        mounted: function() {
+            this.load_proc();
+
+        },
+        methods: {
+            get_procs: function(data){
+                let proc_info = "";
+                let result = {"nodes": [], "edges": []}
+                let treenode = {}
+                let parent = 1;
+                let parent_name = null;
+                let compare = function(a,b){
+                        if(a.id < b.id) {return 1};
+                        if(a.id > b.id) {return -1;}
+                        return 0;
+                    };
+                let count = 0;
+                data.sort(compare);
+                for(let i=0;i<data.length;i++){
+                    let dataelt = data[i];
+                    if($.urlParam("root") != 0) {
+                        if(dataelt["name"] == $.urlParam("root")){
+                            parent = dataelt["id"];
+                            dataelt["is_root"] = 1;
+                        }
+                        else {
+                            dataelt["is_root"] =0;
+                        }
+                    }
+                    else if(dataelt["is_root"] == 1) {
+                        parent = dataelt["id"];
+                    }
+
+                    if(i<1000) {
+                        proc_info += "<tr><td>" + dataelt["id"]+ "</td><td>" + dataelt["exe"] + "</td><td>" + dataelt["args"] + "</td></tr>";
+                    }
+                    count += 1;
+                    this.proclist[dataelt["id"]] = dataelt["name"];
+                    if(treenode[dataelt["parent"]]==undefined){
+                        treenode[dataelt["parent"]] = [];
+                    }
+                    treenode[dataelt["parent"]].push({"id": dataelt["id"], "name": dataelt["name"],"is_root": dataelt["is_root"]});
+                }
+                this.nbprocess = count;
+
+                let root = treenode[parent];
+
+                for(let key in treenode) {
+                    let elt = treenode[key];
+                    for(let j=0;j<elt.length;j++){
+                        let subchild = elt[j];
+                        let node = {"id":  subchild["id"], "label":  this.proclist[subchild["id"]]+"("+ subchild["id"]+")"};
+                        if(subchild["is_root"]) {
+                            node['color'] ="red";
+                        }
+                        result["nodes"].push(node);
+                        result["edges"].push({"from": key, "to": subchild["id"], arrows:"to"});
+                    }
+                }
+
+                treenode = null;
+
+                $("#proc_info").append(proc_info);
+                $("#proc_table").DataTable();
+                return result;
+            },
+            load_proc: function(){
+                let container_id = $.urlParam('container');
+                let ctx = this;
+                d3.json('/container/'+container_id+'/proc').header('Authorization', 'token ' + token).get(function(data) {
+                    if(data == undefined){
+                        $("#msg").html("<span class=\"alert alert-danger\">Error: cannot get data</span>");
+                        return;
+                    }
+                    ctx.procs = ctx.get_procs(data['data']);
+                    ctx.draw()
+                });
+            },
+            draw: function(){
+                let container = document.getElementById('procs_relationship');
+                if(this.procs.nodes.length<200){
+                        var nodes = new vis.DataSet(this.procs.nodes);
+                        var edges = new vis.DataSet(this.procs.edges);
+                        var netdata = {
+                        nodes: nodes,
+                        edges: edges
+                        };
+                        /*
+                        var options = {
+                            'height': '400px'
+                        };
+                        */
+                        var options = {
+                            height: '400px'
+            ,                layout: {
+                                hierarchical: {
+                                    direction: "UD",
+                                    sortMethod: "directed"
+                                }
+                            },
+                            interaction: {dragNodes :false},
+                            physics: {
+                                enabled: false
+                            }
+                        };
+                        var network = new vis.Network(container, netdata, options);
+                    }
+                else {
+                    console.log('too many processes, do not show process graph');
+                }                
+            }          
+        }
+    }
+    Vue.component('proc', Proc); 
+    
+    var Io = {
+        template: '#io',
+        props: ['proclist', 'interval'],
+        data: function() {
+            return {
+                ios: [],
+                files: [],
+                gb_io_files_in_out: 0,
+                gb_io_files_in: 0,
+                gb_io_files_out: 0,
+                gb_io_files_access: 0,
+                gb_io_files_modified: 0,
+                gb_io_network_in_out: 0,
+                gb_io_network_in: 0,
+                gb_io_network_out: 0,
+            }
+        },
+        mounted: function() {
+            this.load_io();
+            this.load_io_interval();
+        },
+        watch: {
+            proclist: function(val, oldVal) {
+                let groups = [];
+                for(var key in val){
+                    var procname = key;
+                    if(this.proclist[key]){
+                        procname = this.proclist[key];
+                    }
+                    groups.push({"id": key, "content": procname+"("+key+")"});
+                }
+                this.ios.groups = groups;
+                this.draw();
+                //this.updateFiles();           
+            },
+            interval: function(val, oldVal) {
+                this.load_io();
+                this.load_io_interval();
+            }
+        },
+        methods: {
+            get_io: function(data){
+                let io_data = [];
+                let procs = [];
+                let groups = [];
+                for(let key in data){
+                    let ok = false;
+
+                    for(let i=0;i<data[key].length;i++){
+                        ok = true;
+                        metric = {"x": new Date(data[key][i]["ts"]*1000), "y": (data[key][i]["bytes"])/1000, "group": key}
+                        io_data.push(metric);
+                    }
+                    if(ok){
+                        procs.push(key);
+                        let procName =key;
+                        if(this.proclist[data[key][0]["proc_name"]]) {
+                            procName = this.proclist[data[key][0]["proc_name"]];
+                        }
+                        groups.push({"id": key, "content": procName + ":" + key});
+                    }
+                }
+                return {"data": io_data, "groups": groups, "procs": procs};
+            },
+            load_io_interval: function() {
+                let container = $.urlParam('container');
+                let ctx = this;
+                let show_system = $('#io_system').is(':checked');
+                d3.json("/container/"+container+"/io" + '?interval=' + this.interval + '&system=' + show_system).header("Authorization", "token " + token).get(function(data) {
+                    $("#mychart_io_interval").html("");
+                    ctx.ios = ctx.get_io(data);
+                    ctx.draw()
+                });
+            },
+            draw: function() {
+                let container = document.getElementById('mychart_io_interval');
+                let dataset = new vis.DataSet(this.ios.data);
+                let options = {
+                        style: 'bar',
+                        stack: false,
+                        drawPoints: false,
+                        legend: true,
+                };
+                let graph2d = new vis.Graph2d(container, dataset, this.ios.groups, options);
+            },
+            load_io: function(){
+                let container = $.urlParam('container');
+                let ctx = this;
+                d3.json("/container/"+container+"/io").header("Authorization", "token " + token).get(function(data) {
+                    ctx.files = data;
+                    ctx.updateFiles()
+                });
+            },
+            updateFiles: function(){
+                let show_system = $('#io_system').is(':checked');
+                let io_list = "";
+                let io_tmp = [];
+                let files_in = 0;
+                let files_out = 0;
+                let network_in = 0;
+                let network_out = 0;
+                let files_access = 0;
+                let files_modified = 0;
+                let firsts = {"in": {}, "out": {}};
+                for(let key in this.files){
+                        for(let i=0;i<this.files[key].length;i++){
+                            var elt = this.files[key][i];
+                            let procName = elt['proc_id'];
+                            if(this.proclist[elt["proc_id"]]) {
+                                procName = this.proclist[elt["proc_id"]];
+                            }
+                            io_tmp.push({
+                                "count": elt['io_total'],
+                                "row": "<tr><td>" + procName + "(" + elt["proc_id"] +")" + "</td><td>" + elt['file_name'] + "</td><td>" + elt['io_in'] + "</td><td>" + elt['io_out'] + "</td></tr>"
+                            });
+                            let filename = elt['file_name'];
+
+                            if(filename.startsWith("/")){
+                                if(this.files[key][i]["io_in"]>0){
+                                    files_in += this.files[key][i]["io_in"];
+                                    firsts.in.filename=1;
+                                }
+                                if(this.files[key][i]["io_out"]>0){
+                                    files_out += this.files[key][i]["io_out"];
+                                    firsts.out.filename=1;
+                                }
+                            }
+                            else {
+                                if(this.files[key][i]["io_in"]>0){
+                                    network_in += this.files[key][i]["io_in"];
+                                }
+                                if(this.files[key][i]["io_out"]>0){
+                                    network_out += this.files[key][i]["io_out"];
+                                }
+                            }
+                            if(filename.startsWith("/")){
+                                if(firsts.in.filename !== undefined && this.files[key][i]["io_in"]>0){
+                                    files_access += 1;
+                                }
+                                if(firsts.out.filename && this.files[key][i]["io_out"]>0){
+                                    files_modified += 1;
+                                }
+                            }
+                            if(! show_system) {
+                                if(filename.startsWith('/etc') || filename.startsWith('/usr') || filename.startsWith('/lib')) {
+                                    continue;
+                                }
+                            }
+                        }
+                }
+                let compare = function(a,b){
+                        if(a.count < b.count) {return 1};
+                        if(a.count > b.count) {return -1;}
+                        return 0;
+                };
+                io_tmp.sort(compare);
+                for(var io=0;io<Math.min(100, io_tmp.length);io++){
+                    io_list += io_tmp[io].row;
+                }
+
+                $("#io_all_list").html(io_list);
+                $("#io_table").DataTable();
+                this.gb_io_files_in_out = files_in+files_out;
+                this.gb_io_files_in = files_in;
+                this.gb_io_files_out = files_out;
+                this.gb_io_files_access = files_access;
+                this.gb_io_files_modified = files_modified;
+                this.gb_io_network_in_out = network_in + network_out;
+                this.gb_io_network_in = network_in;
+                this.gb_io_network_out = network_out;                
+            }
+        }
+    }
+    Vue.component('io', Io);
+    
+    var Cpu = {
+        template: '#cpu',
+        props: ['proclist', 'interval'],
+        data: function() {
+            return {
+                cpus: [],
+                cpu: []
+            }
+        },
+        mounted: function() {
+            this.load_cpu();
+        },
+        watch: {
+            proclist: function(val, oldVal) {
+                let groups = [];
+                for(var key in val){
+                    var procname = key;
+                    if(this.proclist[key]){
+                        procname = this.proclist[key];
+                    }
+                    groups.push({"id": key, "content": procname+"("+key+")"});
+                }
+                this.cpus.groups = groups;
+                this.draw();             
+            },
+            interval: function(val, oldVal) {
+                this.load_cpu();
+            }
+        },
+        methods: {
+            load_cpu: function(){
+                let container = $.urlParam('container');
+                let ctx = this;
+                d3.json('/container/'+container+'/cpu?interval=' + this.interval).header('Authorization', 'token ' + token).get(function(data) {
+                    let cpuData = ctx.get_cpu_all(data)
+                    ctx.cpus = cpuData;
+                    ctx.draw();
+
+                });
+            },
+            load_per_cpu: function(){
+                let container = $.urlParam('container');
+                let proc_id = $("#cpu_proc").val();
+                let ctx = this;
+                d3.json('/container/'+container+'/cpu/' + proc_id + '?interval=' + this.interval).header('Authorization', 'token ' + token).get( function(data) {
+                    $("#mychart_cpu_details").html("");
+                    let cpuData = ctx.get_per_cpu(data, proc_id);
+                    ctx.cpu = cpuData;
+                    let container = document.getElementById('mychart_cpu_details');
+                    let dataset = new vis.DataSet(cpuData.data);
+                    let options = {
+                        style: 'line',
+                        stack: false,
+                        drawPoints: false,
+                        legend: true,
+                        //width: '800px',
+                    };
+                    let graph2d = new vis.Graph2d(container, dataset, cpuData.groups, options);
+                });
+            },
+            showProc: function(){
+                this.load_per_cpu($.urlParam('container'), $("#cpu_proc").val());
+            },
+            draw: function(){
+                if(!this.cpus.procs){return};
+                $("#mychart_cpu0").html("");
+                    let container = document.getElementById('mychart_cpu0');
+                    let dataset = new vis.DataSet(this.cpus.data);
+                    let options = {
+                        style: 'line',
+                        stack: false,
+                        drawPoints: false,
+                        legend: true,
+                        //width: '800px',
+                    };
+                    let graph2d = new vis.Graph2d(container, dataset, this.cpus.groups, options);
+                    $("#cpu_proc").html("");
+                    let proc_selection = "";
+                    for(let i=0; i<this.cpus.procs.length;i++){
+                        let proc_name = this.cpus.procs[i];
+                        if(this.proclist && this.proclist[proc_name]) {
+                            proc_name = this.proclist[this.cpus.procs[i]];
+                        }
+                        proc_selection += "<option value=\"" + this.cpus.procs[i] + "\">" + proc_name + "("+this.cpus.procs[i]+")" + "</option>";
+                    }
+                    $("#cpu_proc").append(proc_selection);
+            },
+            get_per_cpu: function (data, proc_id){
+                let sub = 10;
+                if(this.interval == "m") {
+                    sub = 60;
+                }
+                else if (this.interval == "h") {
+                    sub = 3600;
+                }
+                else if (this.interval == "d") {
+                    sub = 3600 * 24;
+                }
+
+                let cpu_data = [];
+                let procs = [];
+                let cpu_list = [];
+                let groups = [{"id": "cpu", "content": "cpu"}];
+                for(let i=0;i<data[proc_id].length;i++){   
+                    procs.push(proc_id);
+                    metric = {"x": new Date(data[proc_id][i]["ts"]*1000), "y": data[proc_id][i]["duration"] * 100 / (1000000000 * sub), "group": "cpu"}
+                    cpu_data.push(metric);
+
+                }
+                return {"data": cpu_data, "groups": groups, "procs": procs};
+            },
+            get_cpu_all: function(data){
+                let sub = 10;
+                if(this.interval == "m") {
+                    sub = 60;
+                }
+                else if (this.interval == "h") {
+                    sub = 3600;
+                }
+                else if (this.interval == "d") {
+                    sub = 3600 * 24;
+                }
+
+                let cpu_data = [];
+                let procs = [];
+                let groups = [];
+                let has_data = false;
+                for(let key in data){
+                    let ok = false;
+                    for(let i=0;i<data[key].length;i++){
+                        let has_data = true;
+                        let key_ts = new Date(data[key][i]["ts"] * 1000).getTime();
+
+                        ok = true;
+                        metric = {"x": new Date(data[key][i]["ts"]*1000), "y": data[key][i]["duration"] * 100 / (1000000000 * sub), "group": key}
+                        cpu_data.push(metric);
+                    }
+                    if(ok) {
+                        procs.push(key);
+                        let procname = key;
+                        if(this.proclist[key]){
+                            procname = this.proclist[key];
+                        }
+                        groups.push({"id": key, "content": procname+"("+key+")"});
+                    }
+                }
+                return {"data": cpu_data, "groups": groups, "procs": procs};
+            }
+        }
+    }
+    Vue.component('cpu', Cpu);
+    
+    var Mem = {
+        template: '#mem',
+        props: ['proclist', 'interval'],
+        data: function() {
+            return {
+                mem: []
+            }
+        },
+        mounted: function() {
+            this.load_mem();
+        },
+        watch: {
+            proclist: function(val, oldVal) {
+                let groups = [];
+                for(var key in val){
+                    var procname = key;
+                    if(this.proclist[key]){
+                        procname = this.proclist[key];
+                    }
+                    groups.push({"id": key, "content": procname+"("+key+")"});
+                }
+                this.mem.groups = groups;
+                this.draw();             
+            },
+            interval: function(val, oldVal) {
+                this.load_mem();
+            }
+        },        
+        methods: {
+            get_mem: function(data){
+                let mem_data = [];
+                let procs = [];
+                let groups = [];
+                for(let key in data){
+                    let ok = false;
+                    for(let i=0;i<data[key].length;i++){
+                        ok = true;
+                        metric = {"x": new Date(data[key][i]["ts"]*1000), "y": data[key][i]["vm_size"]/1000, "group": key}
+                        mem_data.push(metric);
+                    }
+                    if(ok){
+                        procs.push(key);
+                        let procname = key;
+                        if(this.proclist[key]){
+                            procname = this.proclist[key];
+                        }
+                        groups.push({"id": key, "content": procname+"("+key+")"});
+                    }
+                }
+                return {"data": mem_data, "groups": groups, "procs": procs};            
+            },
+            load_mem: function(){
+                let container = $.urlParam('container');
+                let ctx = this;
+                d3.json('/container/'+container+'/mem?interval=' + this.interval).header('Authorization', 'token ' + token).get(function(data) {
+                    $("#mychart_mem").html("");
+                    ctx.mem = ctx.get_mem(data);
+                    ctx.draw();
+                });
+            },
+            draw: function(){
+                let container = document.getElementById('mychart_mem');
+                let dataset = new vis.DataSet(this.mem.data);
+                let options = {
+                        style: 'line',
+                        stack: false,
+                        drawPoints: false,
+                        legend: true,
+                        //width: '800px',
+                        dataAxis: {
+                            left: {
+                                title: {text: 'Mb'}
+                            }
+
+                        }
+                };
+                let graph2d = new vis.Graph2d(container, dataset, this.mem.groups, options);
+            }
+        }
+    }
+    Vue.component('mem', Mem);
+
+    const app = new Vue({
+        data: function() {
+            return {
+                proclist: {},
+                showtab: 2,
+                interval: 's'
+            }
+        },
+        mounted() {
+            this.load_proc($.urlParam('container'), this.interval);
+        },
+        methods: {
+            load_proc: function(container_id){
+                let ctx = this;
+                d3.json('/container/'+container_id+'/proc').header('Authorization', 'token ' + token).get(function(data) {
+                    if(data == undefined){
+                        return;
+                    }
+                    let procs = {}
+                    for(let i=0;i<data['data'].length;i++){
+                        let proc = data['data'][i];
+                        procs[proc['id']] = proc['name'];
+                    }
+                    ctx.proclist = procs;
+                    // EventBus.$emit('procs', {procs: this.proclist});
+                });
+            },
+            showTab: function(tabId) {
+                this.showtab = tabId
+            },
+            changeRange: function(range) {
+                this.interval = range
+            }
+        }
+    }).$mount('#app');
+
 
     </script>
 </body>
